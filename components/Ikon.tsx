@@ -418,6 +418,98 @@ export function IkonHapus(p: Props) {
   );
 }
 
+/** Hentikan — bujur sangkar padat. Bentuk berhenti yang sudah dikenal semua
+ *  orang; tidak ada gunanya menciptakan bentuk baru untuk ini. */
+export function IkonHenti(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={<rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" />}
+    />
+  );
+}
+
+/** Cari — lensa dengan gagang, ujung tajam di pangkalnya. */
+export function IkonCari(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <circle cx="10.5" cy="10.5" r="6" />
+          <path d="m15 15 5 5" />
+        </>
+      }
+    />
+  );
+}
+
+/** Sematkan — jangkar kecil yang menahan sesuatu di tempatnya. */
+export function IkonSemat(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M14.5 3.5 20.5 9.5" />
+          <path d="M16.5 5.5 10 8l-1.5 5.5L11 16l5.5-1.5L19 8l-2.5-2.5Z" />
+          <path d="m10 14-6 6" />
+        </>
+      }
+    />
+  );
+}
+
+/** Unduh — panah menyelam ke dasar. */
+export function IkonUnduh(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M12 3.5v11" />
+          <path d="m7.5 10 4.5 4.5 4.5-4.5" />
+          <path d="M4.5 19.5h15" />
+        </>
+      }
+    />
+  );
+}
+
+/** Cabang — satu arus yang memisah jadi dua. */
+export function IkonCabang(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <circle cx="7" cy="5.5" r="2" />
+          <circle cx="7" cy="18.5" r="2" />
+          <circle cx="17" cy="12" r="2" />
+          <path d="M7 7.5v9" />
+          <path d="M7 12h8" />
+        </>
+      }
+    />
+  );
+}
+
+/** Pintasan papan ketik — tuts. */
+export function IkonPintasan(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <rect x="2.5" y="6" width="19" height="12" rx="2" />
+          <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01" />
+          <path d="M8 14h8" />
+        </>
+      }
+    />
+  );
+}
+
 /** Kirim — mata panah tunggal condong ke kanan, ujung tajam. */
 export function IkonKirim(p: Props) {
   return (

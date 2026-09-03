@@ -7,6 +7,8 @@ import {
   daftarPercakapan,
   gantiJudul,
   hapusPercakapan,
+  setSemat,
+  cariPercakapan,
 } from "@/lib/riwayat";
 
 /**
@@ -43,8 +45,11 @@ async function bacaObjek(req: Request): Promise<{ nilai?: Record<string, unknown
  *   PUT  { id, pesan }            -> tambah satu pesan
  */
 export async function GET(req: Request) {
-  const id = new URL(req.url).searchParams.get("id");
+  const param = new URL(req.url).searchParams;
+  const id = param.get("id");
+  const cari = param.get("cari");
   try {
+    if (cari !== null) return Response.json(cariPercakapan(cari));
     return Response.json(id ? ambilPercakapan(id) : daftarPercakapan());
   } catch (e) {
     // Daftar kosong dan gagal membaca TIDAK boleh terlihat sama: yang pertama
@@ -96,9 +101,26 @@ export async function PATCH(req: Request) {
   const { nilai: badan, galat } = await bacaObjek(req);
   if (galat) return galat;
 
-  const { id, judul } = badan as { id?: unknown; judul?: unknown };
+  const { id, judul, disemat } = badan as {
+    id?: unknown;
+    judul?: unknown;
+    disemat?: unknown;
+  };
+
+  // Menyematkan dan mengganti judul berbagi satu rute karena keduanya adalah
+  // "ubah sebagian dari satu percakapan" — itulah arti PATCH.
+  if (typeof id === "string" && typeof disemat === "boolean") {
+    try {
+      const ada = setSemat(id, disemat);
+      if (!ada) return Response.json({ pesan: "Percakapan tidak ditemukan" }, { status: 404 });
+      return Response.json({ ok: true });
+    } catch (e) {
+      return Response.json({ pesan: `Gagal menyematkan: ${(e as Error).message}` }, { status: 500 });
+    }
+  }
+
   if (typeof id !== "string" || typeof judul !== "string" || !judul.trim()) {
-    return Response.json({ pesan: "Butuh id dan judul" }, { status: 400 });
+    return Response.json({ pesan: "Butuh id dan judul, atau id dan disemat" }, { status: 400 });
   }
 
   try {

@@ -31,16 +31,21 @@ import { Markdown } from "@/components/chat/Markdown";
 import { AksiPesan } from "@/components/chat/AksiPesan";
 import { PesanPengguna } from "@/components/chat/PesanPengguna";
 import { AreaLepas, DaftarLampiran, TombolLampir } from "@/components/chat/Lampiran";
+import { BilahAtas } from "@/components/chat/BilahAtas";
+import { PanelPintasan } from "@/components/chat/PanelPintasan";
 import { TandaTiburon } from "@/components/TandaTiburon";
 import { judulDari } from "@/lib/judul";
 import { susunDenganLampiran, type Lampiran as Berkas } from "@/lib/lampiran";
+import { keMarkdown, keJson, namaBerkas, unduh } from "@/lib/ekspor";
 import {
   IkonBanding,
   IkonCepat,
   IkonModel,
+  IkonHenti,
   IkonPeringatan,
   IkonRadar,
   IkonTiburon,
+  IkonTurun,
 } from "@/components/Ikon";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -64,6 +69,9 @@ type Balasan = {
   /** Diisi hanya saat mode banding: jalur mana yang menghasilkan balasan ini.
    *  Dua balasan berurutan yang punya kolom akan dirender berdampingan. */
   kolom?: Jalur;
+  /** Dihentikan pengguna di tengah jalan. Dibedakan dari gagal: jawabannya
+   *  tetap sah sejauh yang sempat ditulis, cuma belum selesai. */
+  dihentikan?: boolean;
 };
 
 function bacaKejadian(baris: string): KejadianAliran | null {
@@ -129,9 +137,70 @@ function IsiObrolan() {
   } | null>(null);
   const [lampiran, setLampiran] = useState<Berkas[]>([]);
   const [galatLampiran, setGalatLampiran] = useState("");
+  const [ikutiBawah, setIkutiBawah] = useState(true);
+  const [judul, setJudul] = useState("Obrolan baru");
+  const [pintasanTerbuka, setPintasanTerbuka] = useState(false);
   const bawah = useRef<HTMLDivElement>(null);
+  const gulir = useRef<HTMLDivElement>(null);
+  const pembatal = useRef<AbortController | null>(null);
   const router = useRouter();
   const paramCari = useSearchParams();
+
+  const untukEkspor = () =>
+    pesan.map((p) => ({
+      peran: p.peran,
+      isi: p.isi,
+      model: p.model,
+      sumber: p.sumber,
+    }));
+
+  /**
+   * Cabangkan percakapan.
+   *
+   * Membuat percakapan BARU berisi salinan seluruh pesan sampai saat ini, lalu
+   * berpindah ke sana. Yang asli tidak disentuh sama sekali — itu seluruh
+   * gunanya: mencoba arah lain tanpa merusak jalur yang sudah bagus.
+   *
+   * Berbeda dari menyunting pesan, yang justru MEMBUANG apa yang ada di
+   * bawahnya. Keduanya menjawab kebutuhan yang berbeda: menyunting untuk
+   * memperbaiki pertanyaan yang salah, mencabangkan untuk menjajaki dua
+   * kemungkinan sekaligus.
+   */
+  async function cabangkan() {
+    if (sibuk || pesan.length === 0) return;
+    try {
+      const r = await fetch("/api/percakapan", {
+        method: "POST",
+        body: JSON.stringify({ judul: `${judul} (cabang)` }),
+      });
+      if (!r.ok) throw new Error((await r.json()).pesan ?? `HTTP ${r.status}`);
+      const { id } = await r.json();
+
+      // Disalin BERURUTAN, bukan lewat Promise.all: urutan pesan di sini
+      // ditentukan oleh urutan penyisipan (kolom id AUTOINCREMENT), jadi
+      // mengirimnya bersamaan bisa mengacak percakapan hasil salinannya.
+      for (const p of pesan) {
+        await fetch("/api/percakapan", {
+          method: "PUT",
+          body: JSON.stringify({ id, pesan: { role: p.peran, content: p.isi } }),
+        });
+      }
+      router.push(`/app?id=${id}`);
+    } catch (e) {
+      setGalatRiwayat(`Gagal mencabangkan: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * Hentikan jawaban yang sedang mengalir.
+   *
+   * Yang sudah sempat ditulis DIPERTAHANKAN, tidak dihapus. Jawaban setengah
+   * jadi kerap sudah menjawab pertanyaannya -- itu justru alasan orang menekan
+   * tombol ini -- dan membuangnya menghukum tindakan yang benar.
+   */
+  function hentikan() {
+    pembatal.current?.abort();
+  }
 
   /**
    * Tambah lampiran, tolak yang namanya sudah ada.
@@ -152,11 +221,69 @@ function IsiObrolan() {
   // Menu perintah muncul saat kotak diawali "/" dan belum ada spasi.
   const menuTerbuka = teks.startsWith("/") && !teks.includes(" ");
 
+  /**
+   * Gulir otomatis, TAPI hanya selama pengguna memang berada di bawah.
+   *
+   * Sebelum ini setiap potongan teks yang masuk memanggil scrollIntoView tanpa
+   * syarat — jadi menggulir ke atas untuk membaca ulang sesuatu di tengah
+   * jawaban yang panjang akan langsung menyeret kembali ke bawah, berkali-kali
+   * per detik. Itu membuat jawaban panjang praktis tidak bisa dibaca sampai
+   * selesai.
+   *
+   * Sekarang: menggulir ke atas mematikan pengikutan, dan kembali ke dasar
+   * menyalakannya lagi. Persis seperti Claude dan ChatGPT.
+   */
   useEffect(() => {
-    // Dipanggil opsional: scrollIntoView tidak ada di semua lingkungan
-    // (jsdom tidak punya). Tanpa `?.` seluruh komponen gagal render di uji.
-    bawah.current?.scrollIntoView?.({ behavior: "smooth" });
-  }, [pesan]);
+    if (ikutiBawah) bawah.current?.scrollIntoView?.({ behavior: "smooth" });
+  }, [pesan, ikutiBawah]);
+
+  useEffect(() => {
+    const el = gulir.current;
+    if (!el) return;
+    function periksa() {
+      const el = gulir.current;
+      if (!el) return;
+      // 80px, bukan 0: gulir mulus jarang berhenti tepat di piksel terakhir,
+      // dan ambang nol akan mematikan pengikutan karena selisih beberapa
+      // piksel yang tidak pernah dimaksudkan siapa pun.
+      const diBawah = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      setIkutiBawah(diBawah);
+    }
+    el.addEventListener("scroll", periksa, { passive: true });
+    return () => el.removeEventListener("scroll", periksa);
+  }, []);
+
+  /**
+   * "?" membuka daftar pintasan -- TAPI hanya kalau fokus tidak sedang di
+   * kotak teks. Tanpa penjaga itu, mengetik tanda tanya di tengah pertanyaan
+   * akan membuka dialog dan menelan karakternya.
+   */
+  useEffect(() => {
+    function tekan(e: KeyboardEvent) {
+      if (e.key !== "?" || e.ctrlKey || e.metaKey) return;
+      const el = document.activeElement;
+      const mengetik =
+        el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLInputElement ||
+        (el as HTMLElement | null)?.isContentEditable;
+      if (mengetik) return;
+      e.preventDefault();
+      setPintasanTerbuka(true);
+    }
+    window.addEventListener("keydown", tekan);
+    return () => window.removeEventListener("keydown", tekan);
+  }, []);
+
+  // Esc menghentikan jawaban yang mengalir. Tidak dianimasikan dan tidak
+  // meminta konfirmasi -- pintasan papan ketik untuk menghentikan sesuatu
+  // harus seketika, atau ia kalah cepat dari menekan tombolnya.
+  useEffect(() => {
+    function tekan(e: KeyboardEvent) {
+      if (e.key === "Escape" && sibuk) hentikan();
+    }
+    window.addEventListener("keydown", tekan);
+    return () => window.removeEventListener("keydown", tekan);
+  }, [sibuk]);
 
   // Pintasan kedalaman: Ctrl/Cmd + 1, 2, 3.
   //
@@ -201,13 +328,19 @@ function IsiObrolan() {
         // `?id=` dari sidebar menang. Tanpa ini, mengklik percakapan mana pun
         // di sidebar akan selalu membuka percakapan TERBARU, bukan yang diklik.
         let id = paramCari.get("id");
+        // Daftar tetap diambil walau id-nya sudah diketahui: judulnya ada di
+        // sana, dan bilah atas butuh judul yang sebenarnya, bukan "Obrolan
+        // baru" yang menempel selamanya.
+        const r = await fetch("/api/percakapan");
+        if (!r.ok) throw new Error(`daftar percakapan: HTTP ${r.status}`);
+        const daftar: { id: string; judul: string }[] = await r.json();
+        if (dibatalkan) return;
         if (!id) {
-          const r = await fetch("/api/percakapan");
-          if (!r.ok) throw new Error(`daftar percakapan: HTTP ${r.status}`);
-          const daftar: { id: string }[] = await r.json();
-          if (dibatalkan || !daftar.length) return;
+          if (!daftar.length) return;
           id = daftar[0].id;
         }
+        const ketemu = daftar.find((d) => d.id === id);
+        if (ketemu) setJudul(ketemu.judul);
         const rp = await fetch(`/api/percakapan?id=${id}`);
         if (!rp.ok) throw new Error(`isi percakapan: HTTP ${rp.status}`);
         const lama: { role: string; content: string }[] = await rp.json();
@@ -241,6 +374,7 @@ function IsiObrolan() {
       if (!r.ok) return null;
       const { id } = await r.json();
       setIdPercakapan(id);
+      setJudul(judulDari(judul));
       return id;
     } catch {
       return null;
@@ -286,6 +420,10 @@ function IsiObrolan() {
     try {
       const resp = await fetch("/api/cepat", {
         method: "POST",
+        // Sinyal yang sama dipakai kedua aliran saat mode banding, jadi satu
+        // tekan "Hentikan" menghentikan keduanya. Menghentikan satu kolom saja
+        // meninggalkan perbandingan yang tidak bisa dibandingkan.
+        signal: pembatal.current?.signal,
         body: JSON.stringify({
           jalur: jalurDipakai,
           pesan: riwayat.map((p) => ({ role: p.peran, content: p.isi })),
@@ -341,6 +479,16 @@ function IsiObrolan() {
         }
       }
     } catch (e) {
+      // Dihentikan sendiri BUKAN kegagalan. fetch melempar AbortError saat
+      // sinyalnya dibatalkan, dan menampilkannya sebagai galat merah akan
+      // membuat aplikasi seolah rusak tepat setelah pengguna menekan tombol
+      // yang memang bermaksud menghentikannya.
+      if ((e as Error).name === "AbortError") {
+        tulis((akhir) => {
+          akhir.dihentikan = true;
+        });
+        return;
+      }
       tulis((akhir) => {
         akhir.isi = akhir.isi
           ? `${akhir.isi}\n\n**Terputus:** ${(e as Error).message}`
@@ -420,6 +568,10 @@ function IsiObrolan() {
 
     setPesan([...riwayat, ...barisBaru]);
     setSibuk(true);
+    // Controller BARU tiap kiriman: sebuah AbortController yang sudah dibatalkan
+    // tidak bisa dipakai lagi -- memakai ulang yang lama membuat kiriman
+    // berikutnya batal seketika sebelum sempat mengirim apa pun.
+    pembatal.current = new AbortController();
 
     // Sonar hanya berdenyut kalau ada jalur yang benar-benar mencari korpus.
     bolehMatikanSonar = true;
@@ -530,6 +682,11 @@ function IsiObrolan() {
             />
           )}
         </div>
+        {p.dihentikan && (
+          <div className="mt-1 text-[11px]" style={{ color: "var(--teks-redup)" }}>
+            Dihentikan. Yang di atas adalah sejauh yang sempat ditulis.
+          </div>
+        )}
         {/* Aksi hanya muncul pada jawaban yang sudah selesai: menyalin atau
             mengulang jawaban yang masih setengah jalan tidak pernah berguna. */}
         {p.isi && !sibuk && <AksiPesan isi={p.isi} onUlangi={() => ulangi()} />}
@@ -623,15 +780,33 @@ function IsiObrolan() {
         </span>
         <span className="relative inline-flex">
           <Sonar aktif={mencariKorpus} />
-          <button
-            onClick={() => void kirim()}
-            disabled={sibuk || !teks.trim()}
-            aria-label="Kirim pesan"
-            className="relative rounded-[var(--radius)] px-3 py-1.5 text-[13px] transition disabled:opacity-30"
-            style={{ background: "var(--surface)", color: "var(--abyss)" }}
-          >
-            {sibuk ? "…" : "Kirim"}
-          </button>
+          {/* Satu tombol yang BERGANTI PERAN, bukan dua tombol berdampingan.
+              Saat jawaban mengalir, satu-satunya hal yang masuk akal dilakukan
+              di tempat itu adalah menghentikannya -- dan tombol Kirim yang
+              kelabu di sebelah tombol Hentikan cuma menambah sasaran yang
+              harus dihindari. */}
+          {sibuk ? (
+            <button
+              onClick={hentikan}
+              aria-label="Hentikan jawaban"
+              title="Hentikan (Esc)"
+              className="relative flex items-center gap-1.5 rounded-[var(--radius)] px-3 py-1.5 text-[13px] transition"
+              style={{ background: "var(--lapis-2)", color: "var(--teks-kedua)" }}
+            >
+              <IkonHenti ukuran={12} />
+              Hentikan
+            </button>
+          ) : (
+            <button
+              onClick={() => void kirim()}
+              disabled={!teks.trim()}
+              aria-label="Kirim pesan"
+              className="relative rounded-[var(--radius)] px-3 py-1.5 text-[13px] transition disabled:opacity-30"
+              style={{ background: "var(--surface)", color: "var(--abyss)" }}
+            >
+              Kirim
+            </button>
+          )}
         </span>
         </div>
       </div>
@@ -660,7 +835,26 @@ function IsiObrolan() {
       </div>
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <div className="flex-1 overflow-y-auto">
+        {/* Bilah atas hanya muncul kalau sudah ada pesan: ekspor dan cabang
+            di atas layar kosong menawarkan tindakan yang mustahil. */}
+        {!kosong && (
+          <BilahAtas
+            judul={judul}
+            jumlahPesan={pesan.length}
+            onCabang={() => void cabangkan()}
+            onPintasan={() => setPintasanTerbuka(true)}
+            onEksporMd={() =>
+              unduh(namaBerkas(judul, "md"), keMarkdown(judul, untukEkspor()), "text/markdown")
+            }
+            onEksporJson={() =>
+              unduh(namaBerkas(judul, "json"), keJson(judul, untukEkspor()), "application/json")
+            }
+          />
+        )}
+
+        {pintasanTerbuka && <PanelPintasan onTutup={() => setPintasanTerbuka(false)} />}
+
+        <div ref={gulir} className="relative flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-3xl px-6 py-8">
           {kuotaHabis && (
             <SpandukKuota pesan={kuotaHabis} onTutup={() => setKuotaHabis("")} />
@@ -801,7 +995,29 @@ function IsiObrolan() {
 
         {/* Saat sudah ada pesan, komposer menempel di bawah. */}
         {!kosong && (
-          <div className="shrink-0 px-6 pb-6">
+          <div className="relative shrink-0 px-6 pb-6">
+            {/* Tombol turun, tepat di atas komposer. Muncul HANYA saat
+                pengikutan mati -- kalau ia selalu ada, ia jadi tombol yang
+                tidak pernah melakukan apa pun di 95% waktu, dan mata belajar
+                mengabaikannya persis pada saat ia dibutuhkan. */}
+            {!ikutiBawah && (
+              <button
+                onClick={() => {
+                  setIkutiBawah(true);
+                  bawah.current?.scrollIntoView?.({ behavior: "smooth" });
+                }}
+                aria-label="Turun ke pesan terbaru"
+                className="naik absolute -top-5 left-1/2 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border"
+                style={{
+                  borderColor: "var(--garis)",
+                  background: "var(--lapis-2)",
+                  color: "var(--teks-kedua)",
+                  boxShadow: "var(--panel)",
+                }}
+              >
+                <IkonTurun ukuran={16} />
+              </button>
+            )}
             <div className="mx-auto w-full max-w-3xl">{komposer}</div>
           </div>
         )}
