@@ -10,6 +10,7 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import { siapkanSkema } from "@/lib/skema";
 import { randomUUID } from "node:crypto";
 import type { Pesan } from "@/lib/penyedia";
 
@@ -35,33 +36,7 @@ export function dbRiwayat(): string {
 function buka(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS percakapan (
-        id TEXT PRIMARY KEY,
-        judul TEXT NOT NULL,
-        pemilik TEXT NOT NULL DEFAULT '',
-        dibuat INTEGER NOT NULL,
-        diperbarui INTEGER NOT NULL,
-        disemat INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS pesan (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        percakapan_id TEXT NOT NULL,
-        peran TEXT NOT NULL,
-        isi TEXT NOT NULL,
-        waktu INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_pesan_percakapan ON pesan(percakapan_id, id);
-    `);
-
-    // Migrasi untuk basis data yang sudah ada sebelum kolom `disemat` lahir.
-    // CREATE TABLE IF NOT EXISTS di atas tidak menyentuh tabel yang sudah ada,
-    // jadi tanpa ini setiap kueri yang menyebut `disemat` akan gagal di
-    // basis data lama -- termasuk milik Veldan sendiri.
-    const kolom = db.prepare("PRAGMA table_info(percakapan)").all() as { name: string }[];
-    if (!kolom.some((k) => k.name === "disemat")) {
-      db.exec("ALTER TABLE percakapan ADD COLUMN disemat INTEGER NOT NULL DEFAULT 0");
-    }
+    siapkanSkema(db);
   } catch (e) {
     // Handle sudah terbuka (new DatabaseSync berhasil) sebelum exec gagal.
     // Tanpa menutupnya di sini, handle itu bocor ke pemanggil dan tidak

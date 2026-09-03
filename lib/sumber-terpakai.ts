@@ -11,6 +11,7 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import { siapkanSkema } from "@/lib/skema";
 
 export type RingkasanSumber = {
   berkas: string;
@@ -26,16 +27,7 @@ export function dbSumber(): string {
 function buka(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS sumber_terpakai (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        berkas TEXT NOT NULL,
-        kueri TEXT NOT NULL,
-        pemilik TEXT NOT NULL DEFAULT '',
-        waktu INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_sumber_berkas ON sumber_terpakai(berkas, waktu);
-    `);
+    siapkanSkema(db);
   } catch (e) {
     // Handle sudah terbuka sebelum exec gagal; tanpa ini ia bocor ke pemanggil.
     db.close();

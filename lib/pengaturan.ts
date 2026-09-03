@@ -19,6 +19,7 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import { siapkanSkema } from "@/lib/skema";
 import { randomUUID } from "node:crypto";
 
 export type Ingatan = { id: string; isi: string; dibuat: number };
@@ -49,18 +50,7 @@ export function dbPengaturan(): string {
 function buka(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS pengaturan (
-        kunci TEXT PRIMARY KEY,
-        nilai TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS ingatan (
-        id TEXT PRIMARY KEY,
-        isi TEXT NOT NULL,
-        pemilik TEXT NOT NULL DEFAULT '',
-        dibuat INTEGER NOT NULL
-      );
-    `);
+    siapkanSkema(db);
   } catch (e) {
     // Sama seperti di riwayat.ts: handle sudah terbuka sebelum exec gagal,
     // dan tanpa ditutup di sini ia bocor ke pemanggil selamanya.

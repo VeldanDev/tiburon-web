@@ -546,3 +546,26 @@ export function IkonAtur(p: Props) {
     />
   );
 }
+
+/**
+ * Suara — mikrofon.
+ *
+ * Satu-satunya ikon di keluarga ini yang TIDAK diberi bentuk laut dalam.
+ * Mikrofon adalah bentuk yang sudah dikenal semua orang, dan mengganti ikon
+ * perekaman dengan sesuatu yang puitis berarti pengguna harus menebak tombol
+ * mana yang menyalakan mikrofonnya — kesalahan yang akibatnya nyata.
+ */
+export function IkonSuara(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <rect x="9" y="2.5" width="6" height="11" rx="3" />
+          <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+          <path d="M12 17.5V21" />
+        </>
+      }
+    />
+  );
+}

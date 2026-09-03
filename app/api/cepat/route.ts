@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { cari, periksaSkema, type PotonganKorpus } from "@/lib/korpus";
 import { kirim, type Pesan } from "@/lib/penyedia";
 import { ambilPengaturan } from "@/lib/pengaturan";
+import { instruksiUntukPercakapan } from "@/lib/proyek";
 
 function baris(obj: unknown): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(obj)}\n\n`);
@@ -17,17 +18,26 @@ function baris(obj: unknown): Uint8Array {
  * Basis data terkunci sesaat sebaiknya berujung pada jawaban yang sedikit
  * lebih umum, bukan pada layar galat.
  */
-function bacaTambahan(): { instruksi?: string; ingatan?: string[] } {
+function bacaTambahan(percakapanId?: string): { instruksi?: string; ingatan?: string[] } {
   try {
     const p = ambilPengaturan();
-    return { instruksi: p.instruksi, ingatan: p.ingatan.map((i) => i.isi) };
+
+    // Instruksi proyek DISAMBUNG ke instruksi global, bukan menggantikannya.
+    // Keduanya menjawab hal berbeda: yang global soal cara menjawab ("jangan
+    // basa-basi"), yang proyek soal konteks pekerjaan ini ("radar itu Python
+    // di D:\Downloads"). Salah satunya menang berarti pengguna harus memilih
+    // antara gaya dan konteks, padahal ia butuh keduanya.
+    const proyek = percakapanId ? instruksiUntukPercakapan(percakapanId) : "";
+    const gabung = [p.instruksi, proyek].filter((t) => t.trim()).join("\n\n");
+
+    return { instruksi: gabung, ingatan: p.ingatan.map((i) => i.isi) };
   } catch {
     return {};
   }
 }
 
 export async function POST(req: Request) {
-  let badan: { jalur?: string; pesan?: Pesan[] };
+  let badan: { jalur?: string; pesan?: Pesan[]; percakapan?: string };
   try {
     badan = await req.json();
   } catch {
@@ -36,7 +46,7 @@ export async function POST(req: Request) {
   if (typeof badan !== "object" || badan === null || Array.isArray(badan)) {
     return new Response("Badan permintaan harus objek JSON", { status: 400 });
   }
-  const { jalur = "cepat", pesan } = badan;
+  const { jalur = "cepat", pesan, percakapan } = badan;
   if (!Array.isArray(pesan) || pesan.length === 0) {
     return new Response("Butuh daftar pesan", { status: 400 });
   }
@@ -89,7 +99,9 @@ export async function POST(req: Request) {
       // Instruksi khusus dan ingatan dibaca DI SINI, di server, bukan
       // dikirim dari browser. Kalau klien yang mengirimnya, siapa pun yang
       // bisa memanggil rute ini bisa menyuntik prompt sistem apa pun.
-      const { instruksi, ingatan } = bacaTambahan();
+      const { instruksi, ingatan } = bacaTambahan(
+        typeof percakapan === "string" ? percakapan : undefined,
+      );
       for await (const k of kirim(pesan, { konteks, instruksi, ingatan })) {
         kontrol.enqueue(baris(k));
       }

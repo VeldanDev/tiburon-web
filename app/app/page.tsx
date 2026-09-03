@@ -31,12 +31,15 @@ import { Markdown } from "@/components/chat/Markdown";
 import { AksiPesan } from "@/components/chat/AksiPesan";
 import { PesanPengguna } from "@/components/chat/PesanPengguna";
 import { AreaLepas, DaftarLampiran, TombolLampir } from "@/components/chat/Lampiran";
+import { TombolSuara } from "@/components/chat/TombolSuara";
 import { BilahAtas } from "@/components/chat/BilahAtas";
 import { PanelPintasan } from "@/components/chat/PanelPintasan";
+import { PanelArtefak, ChipArtefak } from "@/components/chat/PanelArtefak";
 import { TandaTiburon } from "@/components/TandaTiburon";
 import { judulDari } from "@/lib/judul";
 import { susunDenganLampiran, type Lampiran as Berkas } from "@/lib/lampiran";
 import { keMarkdown, keJson, namaBerkas, unduh } from "@/lib/ekspor";
+import { artefakPercakapan, kenaliArtefak } from "@/lib/artefak";
 import {
   IkonBanding,
   IkonCepat,
@@ -140,6 +143,7 @@ function IsiObrolan() {
   const [ikutiBawah, setIkutiBawah] = useState(true);
   const [judul, setJudul] = useState("Obrolan baru");
   const [pintasanTerbuka, setPintasanTerbuka] = useState(false);
+  const [artefakAktif, setArtefakAktif] = useState<string | null>(null);
   const bawah = useRef<HTMLDivElement>(null);
   const gulir = useRef<HTMLDivElement>(null);
   const pembatal = useRef<AbortController | null>(null);
@@ -426,6 +430,11 @@ function IsiObrolan() {
         signal: pembatal.current?.signal,
         body: JSON.stringify({
           jalur: jalurDipakai,
+          // Id percakapan dikirim supaya server bisa mencari instruksi
+          // proyeknya. Instruksinya sendiri TIDAK dikirim dari sini: kalau
+          // klien yang mengirim isi prompt sistem, siapa pun yang bisa
+          // memanggil rute ini bisa menyuntik apa pun ke dalamnya.
+          percakapan: idPercakapan,
           pesan: riwayat.map((p) => ({ role: p.peran, content: p.isi })),
         }),
       });
@@ -615,6 +624,7 @@ function IsiObrolan() {
   }
 
   const kosong = pesan.length === 0;
+  const semuaArtefak = artefakPercakapan(pesan);
 
   /**
    * Pesan datar dikelompokkan untuk render.
@@ -687,6 +697,16 @@ function IsiObrolan() {
             Dihentikan. Yang di atas adalah sejauh yang sempat ditulis.
           </div>
         )}
+        {/* Artefak hanya dikenali saat jawaban SELESAI. Blok yang belum
+            tertutup pagarnya masih berubah di tiap potongan teks yang masuk,
+            dan chip yang isinya berganti-ganti tidak bisa diklik dengan
+            tenang. */}
+        {!sibuk && (
+          <ChipArtefak
+            artefak={kenaliArtefak(p.isi)}
+            onBuka={(id) => setArtefakAktif(id)}
+          />
+        )}
         {/* Aksi hanya muncul pada jawaban yang sudah selesai: menyalin atau
             mengulang jawaban yang masih setengah jalan tidak pernah berguna. */}
         {p.isi && !sibuk && <AksiPesan isi={p.isi} onUlangi={() => ulangi()} />}
@@ -750,6 +770,13 @@ function IsiObrolan() {
           tambah, pemilih jalur, penanda mode, kirim. Semua dalam satu kotak. */}
       <div className="flex items-center gap-2 px-1 pt-1">
         <TombolLampir onTambah={tambahLampiran} onGalat={setGalatLampiran} nonaktif={sibuk} />
+        {/* Hasil dikte DISAMBUNG ke teks yang sudah ada, tidak menggantinya:
+            mengetik separuh lalu mendiktekan sisanya adalah cara orang
+            benar-benar memakai ini. */}
+        <TombolSuara
+          nonaktif={sibuk}
+          onTeks={(t) => setTeks((lama) => (lama ? `${lama.replace(/\s+$/, "")} ${t}` : t))}
+        />
         <PemilihJalur jalur={jalur} onGanti={setJalur} />
         <button
           onClick={() => setBanding((b) => !b)}
@@ -834,7 +861,8 @@ function IsiObrolan() {
         <PengukurKedalaman jalur={jalur} />
       </div>
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1">
+      <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Bilah atas hanya muncul kalau sudah ada pesan: ekspor dan cabang
             di atas layar kosong menawarkan tindakan yang mustahil. */}
         {!kosong && (
@@ -1022,6 +1050,19 @@ function IsiObrolan() {
             <div className="mx-auto w-full max-w-3xl">{komposer}</div>
           </div>
         )}
+      </div>
+
+      {/* Panel artefak, di SAMPING percakapan. Seluruh gunanya adalah bisa
+          membaca kode sambil melihat kalimat yang menjelaskannya; panel yang
+          menimpa percakapan cuma memindahkan masalah menggulir. */}
+      {artefakAktif && semuaArtefak.length > 0 && (
+        <PanelArtefak
+          artefak={semuaArtefak}
+          aktif={artefakAktif}
+          onPilih={setArtefakAktif}
+          onTutup={() => setArtefakAktif(null)}
+        />
+      )}
       </div>
     </div>
   );
