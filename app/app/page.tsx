@@ -35,6 +35,7 @@ import { TombolSuara } from "@/components/chat/TombolSuara";
 import { BilahAtas } from "@/components/chat/BilahAtas";
 import { PanelPintasan } from "@/components/chat/PanelPintasan";
 import { PanelArtefak, ChipArtefak } from "@/components/chat/PanelArtefak";
+import { JejakAlat, type Jejak } from "@/components/chat/JejakAlat";
 import { TandaTiburon } from "@/components/TandaTiburon";
 import { judulDari } from "@/lib/judul";
 import { susunDenganLampiran, type Lampiran as Berkas } from "@/lib/lampiran";
@@ -58,6 +59,10 @@ type KejadianAliran =
   | { jenis: "sumber"; berkas: string[] }
   | { jenis: "peringatan"; pesan: string }
   | { jenis: "gagal"; pesan: string }
+  // Dua kejadian ini HANYA datang dari /api/agen. Disatukan ke dalam tipe yang
+  // sama karena pembacanya sama; yang membedakan cuma rutenya.
+  | { jenis: "alat-mulai"; nama: string; ringkas: string }
+  | { jenis: "alat-selesai"; nama: string; hasil: string }
   | { jenis: "selesai" };
 
 type Balasan = {
@@ -75,6 +80,9 @@ type Balasan = {
   /** Dihentikan pengguna di tengah jalan. Dibedakan dari gagal: jawabannya
    *  tetap sah sejauh yang sempat ditulis, cuma belum selesai. */
   dihentikan?: boolean;
+  /** Alat yang dipanggil agen untuk sampai ke jawaban ini. Kosong di jalur
+   *  lain. Ini yang membuat jawaban agen bisa diperiksa, bukan dipercaya. */
+  jejak?: Jejak[];
 };
 
 function bacaKejadian(baris: string): KejadianAliran | null {
@@ -298,7 +306,12 @@ function IsiObrolan() {
   useEffect(() => {
     function tekan(e: KeyboardEvent) {
       if (!e.ctrlKey && !e.metaKey) return;
-      const peta: Record<string, Jalur> = { "1": "cepat", "2": "tiburon", "3": "kode" };
+      const peta: Record<string, Jalur> = {
+        "1": "cepat",
+        "2": "tiburon",
+        "3": "agen",
+        "4": "kode",
+      };
       const tujuan = peta[e.key];
       if (!tujuan) return;
       e.preventDefault();
@@ -421,8 +434,14 @@ function IsiObrolan() {
         return salin;
       });
 
+    // Mode agen punya rutenya sendiri: bentuk percakapannya berbeda sampai ke
+    // akar (pesan `tool`, panggilan berulang, tanpa aliran token), jadi
+    // menyatukannya dengan /api/cepat berarti satu rute dengan dua alur yang
+    // tidak berbagi apa pun selain namanya.
+    const rute = jalurDipakai === "agen" ? "/api/agen" : "/api/cepat";
+
     try {
-      const resp = await fetch("/api/cepat", {
+      const resp = await fetch(rute, {
         method: "POST",
         // Sinyal yang sama dipakai kedua aliran saat mode banding, jadi satu
         // tekan "Hentikan" menghentikan keduanya. Menghentikan satu kolom saja
@@ -471,9 +490,32 @@ function IsiObrolan() {
           if (k.jenis === "gagal" && /semua model gagal/i.test(k.pesan)) {
             setKuotaHabis(k.pesan);
           }
+
+          // Sonar berdenyut selama agen memanggil alat, sama seperti saat
+          // jalur Tiburon mencari korpus: satu bahasa visual, satu arti.
+          if (k.jenis === "alat-mulai") setMencariKorpus(true);
+          if (k.jenis === "alat-selesai") matikanSonar();
           tulis((akhir) => {
             if (k.jenis === "teks") akhir.isi += k.teks;
             if (k.jenis === "model") akhir.model = k.nama;
+
+            if (k.jenis === "alat-mulai") {
+              akhir.jejak = [...(akhir.jejak ?? []), { nama: k.nama, ringkas: k.ringkas }];
+            }
+            if (k.jenis === "alat-selesai") {
+              // Hasil dipasang ke jejak TERAKHIR yang namanya cocok dan belum
+              // punya hasil. Mencocokkan lewat nama saja akan salah kalau alat
+              // yang sama dipanggil dua kali dalam satu giliran -- dan itu
+              // justru yang sering dilakukan agen saat menyempurnakan kuerinya.
+              const daftar = [...(akhir.jejak ?? [])];
+              for (let i = daftar.length - 1; i >= 0; i--) {
+                if (daftar[i].nama === k.nama && daftar[i].hasil === undefined) {
+                  daftar[i] = { ...daftar[i], hasil: k.hasil };
+                  break;
+                }
+              }
+              akhir.jejak = daftar;
+            }
             if (k.jenis === "sumber") akhir.sumber = k.berkas;
             if (k.jenis === "peringatan") akhir.peringatan = k.pesan;
             if (k.jenis === "gagal") {
@@ -683,6 +725,7 @@ function IsiObrolan() {
             ))}
           </div>
         )}
+        {p.jejak && <JejakAlat jejak={p.jejak} />}
         <div className="text-[15px] leading-[1.75]" style={{ color: "var(--teks-utama)" }}>
           <Markdown isi={p.isi} />
           {sibuk && !p.isi && (
@@ -802,7 +845,7 @@ function IsiObrolan() {
             style={{ color: "var(--redup)" }}
             title="Ctrl+1 permukaan · Ctrl+2 korpus · Ctrl+3 dasar"
           >
-            {jalur === "cepat" ? "0 m" : jalur === "tiburon" ? "200 m" : "1000 m"}
+            { { cepat: "0 m", tiburon: "200 m", agen: "600 m", kode: "1000 m" }[jalur] }
           </span>
         </span>
         <span className="relative inline-flex">

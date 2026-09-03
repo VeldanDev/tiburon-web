@@ -22,7 +22,8 @@ export const PINTASAN: { tombol: string[]; arti: string }[] = [
   { tombol: ["Esc"], arti: "Hentikan jawaban yang sedang mengalir" },
   { tombol: ["Ctrl", "1"], arti: "Jalur Cepat — permukaan, tanpa korpus" },
   { tombol: ["Ctrl", "2"], arti: "Jalur Tiburon — membaca korpusmu" },
-  { tombol: ["Ctrl", "3"], arti: "Jalur Kode — paling dalam" },
+  { tombol: ["Ctrl", "3"], arti: "Jalur Agen — mencari sendiri berkali-kali" },
+  { tombol: ["Ctrl", "4"], arti: "Jalur Kode — paling dalam" },
   { tombol: ["/"], arti: "Buka menu perintah" },
   { tombol: ["?"], arti: "Buka daftar ini" },
 ];

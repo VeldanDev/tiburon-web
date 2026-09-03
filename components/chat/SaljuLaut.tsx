@@ -24,6 +24,7 @@ import type { Jalur } from "@/components/chat/PemilihJalur";
 const JUMLAH: Record<Jalur, number> = {
   cepat: 0, // permukaan: tidak ada salju laut, ada cahaya matahari
   tiburon: 14, // zona senja
+  agen: 20, // lebih dalam dari zona senja, belum sampai dasar
   kode: 26, // dasar
 };
 

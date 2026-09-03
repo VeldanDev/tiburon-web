@@ -1,0 +1,251 @@
+/**
+ * Alat yang bisa dipanggil Tiburon sendiri.
+ *
+ * Ini yang membedakan mode Agent dari mode obrolan biasa: alih-alih menjawab
+ * dari satu potret konteks yang sudah disiapkan sebelum ia mulai bicara,
+ * Tiburon boleh MENCARI dulu, membaca hasilnya, lalu memutuskan apakah perlu
+ * mencari lagi. Itu pola yang dipakai Hermes di Antigravity dan agen OpenClaw.
+ *
+ * Empat aturan yang membentuk daftar ini:
+ *
+ * 1. SEMUANYA HANYA BACA. Tidak ada alat yang menulis berkas, menjalankan
+ *    perintah, atau menghubungi jaringan. Agen yang bisa menulis butuh lapisan
+ *    izin per tindakan, dan lapisan itu belum ada; menambahkan alat tulis
+ *    sebelum izinnya siap berarti satu jawaban yang salah bisa menghapus
+ *    sesuatu.
+ *
+ * 2. Semuanya menjawab dari data yang SUDAH DIMILIKI Veldan — korpus, radar,
+ *    jadwal, riwayat sumber. Alat yang menghubungi internet akan membuat
+ *    jawaban tidak bisa diperiksa ulang, dan itu melawan seluruh alasan
+ *    proyek ini ada.
+ *
+ * 3. Tiap alat mengembalikan TEKS, bukan objek. Model membaca teks; JSON yang
+ *    diserahkan mentah-mentah membuatnya menghabiskan token untuk mengurai
+ *    tanda kurung alih-alih memahami isinya.
+ *
+ * 4. Gagal adalah HASIL, bukan pengecualian. Alat yang melempar akan
+ *    menghentikan seluruh giliran; alat yang mengembalikan "tidak bisa
+ *    dibaca karena X" membiarkan model memberi tahu kenapa ia tidak bisa
+ *    menjawab.
+ */
+import { cari, periksaSkema, daftarBerkas } from "@/lib/korpus";
+import { bacaRadar } from "@/lib/radar-parser";
+import { ringkasSumber } from "@/lib/sumber-terpakai";
+
+/** Skema alat dalam format OpenAI/OpenRouter function calling. */
+export type SkemaAlat = {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, { type: string; description: string }>;
+      required: string[];
+    };
+  };
+};
+
+type Alat = {
+  skema: SkemaAlat;
+  jalankan: (arg: Record<string, unknown>) => string;
+  /** Ringkasan satu baris untuk ditampilkan di antarmuka. */
+  ringkas: (arg: Record<string, unknown>) => string;
+};
+
+function teksArg(arg: Record<string, unknown>, kunci: string): string {
+  const v = arg[kunci];
+  return typeof v === "string" ? v : "";
+}
+
+const DAFTAR: Alat[] = [
+  {
+    skema: {
+      type: "function",
+      function: {
+        name: "cari_korpus",
+        description:
+          "Cari di korpus pribadi Veldan (catatan, analisis buku, transkrip video). " +
+          "Pakai ini SEBELUM menjawab pertanyaan apa pun yang mungkin sudah dia tulis sendiri. " +
+          "Mengembalikan potongan teks beserta nama berkas asalnya.",
+        parameters: {
+          type: "object",
+          properties: {
+            kueri: { type: "string", description: "Kata kunci pencarian." },
+          },
+          required: ["kueri"],
+        },
+      },
+    },
+    ringkas: (a) => `Mencari korpus: “${teksArg(a, "kueri")}”`,
+    jalankan: (a) => {
+      const kueri = teksArg(a, "kueri").trim();
+      if (!kueri) return "Kueri kosong.";
+
+      const skema = periksaSkema();
+      if (!skema.cocok) return `Korpus tidak terbaca: ${skema.alasan}`;
+
+      try {
+        const hasil = cari(kueri, 6);
+        if (hasil.length === 0) return `Tidak ada yang cocok dengan "${kueri}" di korpus.`;
+        return hasil
+          .map((h) => {
+            const nama = h.path.split(/[\\/]/).pop() ?? h.path;
+            // Dipotong 700 karakter per potongan: enam potongan penuh bisa
+            // memakan seluruh sisa jendela konteks, dan giliran berikutnya
+            // gagal sebelum model sempat menjawab apa pun.
+            return `[${nama}]\n${h.teks.slice(0, 700)}`;
+          })
+          .join("\n\n---\n\n");
+      } catch (e) {
+        return `Pencarian korpus gagal: ${(e as Error).message}`;
+      }
+    },
+  },
+
+  {
+    skema: {
+      type: "function",
+      function: {
+        name: "daftar_berkas_korpus",
+        description:
+          "Daftar semua berkas di korpus Veldan beserta jumlah potongannya. " +
+          "Pakai untuk menjawab 'apa saja yang kupunya' atau saat cari_korpus tidak menemukan apa pun.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    ringkas: () => "Melihat daftar berkas korpus",
+    jalankan: () => {
+      const skema = periksaSkema();
+      if (!skema.cocok) return `Korpus tidak terbaca: ${skema.alasan}`;
+      try {
+        const b = daftarBerkas();
+        if (b.length === 0) return "Korpus kosong.";
+        return b
+          .map((x) => `${x.path.split(/[\\/]/).pop()} (${x.potongan} potongan)`)
+          .join("\n");
+      } catch (e) {
+        return `Daftar korpus gagal dibaca: ${(e as Error).message}`;
+      }
+    },
+  },
+
+  {
+    skema: {
+      type: "function",
+      function: {
+        name: "baca_radar",
+        description:
+          "Baca laporan Radar Pagi untuk satu tanggal: berita teknologi dunia dan repo GitHub yang sedang naik. " +
+          "Tanggal dalam format YYYY-MM-DD. Kosongkan untuk hari ini.",
+        parameters: {
+          type: "object",
+          properties: {
+            tanggal: { type: "string", description: "YYYY-MM-DD, atau kosong untuk hari ini." },
+          },
+          required: [],
+        },
+      },
+    },
+    ringkas: (a) => `Membaca radar ${teksArg(a, "tanggal") || "hari ini"}`,
+    jalankan: (a) => {
+      const t = teksArg(a, "tanggal").trim();
+      // Tanggal divalidasi sebelum dipakai: string sembarang dari model akan
+      // jadi `Invalid Date`, dan bacaRadar akan mencari berkas bernama
+      // "Invalid Date" alih-alih memberi tahu bahwa tanggalnya salah.
+      const tanggal = t ? new Date(`${t}T00:00:00`) : new Date();
+      if (Number.isNaN(tanggal.getTime())) {
+        return `Tanggal "${t}" tidak valid. Pakai format YYYY-MM-DD.`;
+      }
+
+      try {
+        const laporan = bacaRadar(tanggal);
+        if (!laporan) return `Belum ada laporan radar untuk ${t || "hari ini"}.`;
+        const berita = laporan.berita
+          .slice(0, 15)
+          .map((b) => `${b.nomor}. [${b.kategori}] ${b.judul} — ${b.ringkasan} (${b.sumber})`)
+          .join("\n");
+        const github = laporan.github
+          .slice(0, 10)
+          .map((g) => `${g.nomor}. ${g.judul} — ${g.ringkasan}`)
+          .join("\n");
+        return `Radar ${laporan.tanggal}\n\nBERITA:\n${berita}\n\nGITHUB:\n${github || "(kosong)"}`;
+      } catch (e) {
+        return `Radar gagal dibaca: ${(e as Error).message}`;
+      }
+    },
+  },
+
+  {
+    skema: {
+      type: "function",
+      function: {
+        name: "sumber_terpakai",
+        description:
+          "Berkas korpus mana yang paling sering benar-benar menjawab pertanyaan Veldan sejauh ini. " +
+          "Pakai untuk menjawab 'materi apa yang paling berguna' atau 'apa yang jarang kupakai'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    ringkas: () => "Melihat riwayat sumber terpakai",
+    jalankan: () => {
+      try {
+        const r = ringkasSumber();
+        if (r.length === 0) return "Belum ada sumber yang pernah tercatat.";
+        return r
+          .slice(0, 20)
+          .map((s) => `${s.berkas}: ${s.jumlah}x (terakhir untuk "${s.contohKueri}")`)
+          .join("\n");
+      } catch (e) {
+        return `Riwayat sumber gagal dibaca: ${(e as Error).message}`;
+      }
+    },
+  },
+];
+
+export const SKEMA_ALAT: SkemaAlat[] = DAFTAR.map((a) => a.skema);
+
+export function adaAlat(nama: string): boolean {
+  return DAFTAR.some((a) => a.skema.function.name === nama);
+}
+
+/** Ringkasan satu baris untuk ditampilkan, sebelum alatnya dijalankan. */
+export function ringkasPanggilan(nama: string, argumenJson: string): string {
+  const alat = DAFTAR.find((a) => a.skema.function.name === nama);
+  if (!alat) return `Alat tidak dikenal: ${nama}`;
+  return alat.ringkas(uraiArgumen(argumenJson));
+}
+
+/**
+ * Urai argumen dari model.
+ *
+ * Model kerap mengirim JSON yang sedikit cacat — koma menggantung, string yang
+ * belum ditutup. Objek kosong adalah pemulihan yang benar: alat akan melihat
+ * argumen yang hilang dan mengembalikan "kueri kosong", yang bisa dibaca model
+ * dan diperbaiki di giliran berikutnya. Melempar di sini akan mematikan
+ * seluruh percakapan karena satu koma.
+ */
+function uraiArgumen(json: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(json || "{}");
+    return typeof v === "object" && v !== null && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function jalankanAlat(nama: string, argumenJson: string): string {
+  const alat = DAFTAR.find((a) => a.skema.function.name === nama);
+  if (!alat) {
+    // Model kadang mengarang nama alat. Dijawab sebagai HASIL, bukan galat,
+    // supaya ia bisa membaca daftar yang benar dan mencoba lagi.
+    return `Alat "${nama}" tidak ada. Yang tersedia: ${SKEMA_ALAT.map((s) => s.function.name).join(", ")}.`;
+  }
+  try {
+    return alat.jalankan(uraiArgumen(argumenJson));
+  } catch (e) {
+    return `Alat "${nama}" gagal: ${(e as Error).message}`;
+  }
+}

@@ -50,24 +50,40 @@ Kalau kamu tidak tahu, katakan tidak tahu — jangan mengarang.`;
  * kalimat seperti "abaikan semua aturan sebelumnya" di dalamnya jadi jauh
  * lebih mudah dituruti model.
  */
-export function susunPrompt(
-  pesan: Pesan[],
-  konteks: PotonganKorpus[],
-  tambahan?: { instruksi?: string; ingatan?: string[] },
-): Pesan[] {
-  let sistem = PERSONA;
+/**
+ * Bagian prompt sistem yang berlaku di SEMUA mode: ingatan dan instruksi.
+ *
+ * Dipisah dari susunPrompt supaya mode agen bisa memakai personanya sendiri
+ * tanpa harus memotong-motong hasil susunPrompt dengan regex — cara itu
+ * berhenti bekerja diam-diam begitu teks personanya diubah satu kata.
+ */
+export function bagianBersama(tambahan?: {
+  instruksi?: string;
+  ingatan?: string[];
+}): string {
+  let teks = "";
 
   if (tambahan?.ingatan?.length) {
-    sistem +=
+    teks +=
       `\n\nYANG SUDAH KAMU KETAHUI TENTANG VELDAN (ditulis sendiri olehnya):\n` +
       tambahan.ingatan.map((i) => `- ${i}`).join("\n");
   }
 
   if (tambahan?.instruksi?.trim()) {
-    sistem +=
+    teks +=
       `\n\nINSTRUKSI DARI PENGGUNA tentang cara menjawab. Ikuti selama tidak ` +
       `bertentangan dengan aturan di atas:\n${tambahan.instruksi.trim()}`;
   }
+
+  return teks;
+}
+
+export function susunPrompt(
+  pesan: Pesan[],
+  konteks: PotonganKorpus[],
+  tambahan?: { instruksi?: string; ingatan?: string[] },
+): Pesan[] {
+  let sistem = PERSONA + bagianBersama(tambahan);
 
   if (konteks.length) {
     const sumber = konteks
