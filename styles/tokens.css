@@ -1,0 +1,30 @@
+:root {
+  --abyss: #060B14;
+  --deep: #0B2545;
+  --ocean: #14487F;
+  --surface: #3FA9F5;
+  --foam: #A8DCFB;
+  --shell: #F4F9FD;
+
+  /* Latar berubah mengikuti jalur aktif. Transisi diatur di layout. */
+  --latar-cepat: var(--shell);
+  --latar-tiburon: var(--deep);
+  --latar-kode: var(--abyss);
+
+  --teks-terang: var(--shell);
+  --teks-gelap: #0A1420;
+  --radius: 14px;
+}
+
+:root:not([data-tema="terang"]) {
+  --latar-cepat: var(--deep);
+}
+
+:root[data-tema="gelap"] {
+  --latar-cepat: var(--deep);
+}
+
+body {
+  background: var(--latar-cepat);
+  transition: background 400ms ease;
+}
