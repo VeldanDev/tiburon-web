@@ -68,8 +68,55 @@ describe("kirim", () => {
     if (gagal.jenis !== "gagal") {
       throw new Error(`kejadian terakhir seharusnya "gagal", dapat: ${gagal.jenis}`);
     }
-    expect(gagal.pesan).toContain("a");
-    expect(gagal.pesan).toContain("b");
-    expect(gagal.pesan).toContain("429");
+    expect(gagal.pesan).toMatch(/\ba: HTTP 429\b/);
+    expect(gagal.pesan).toMatch(/\bb: HTTP 429\b/);
+  });
+
+  it("HTTP 200 dengan aliran tanpa isi dihitung GAGAL, bukan sukses", async () => {
+    // Pola genspark: penyedia membalas 200 tapi tidak pernah mengirim konten.
+    // Kalau ini dianggap sukses, failover tidak terpicu dan pengguna menerima
+    // gelembung kosong tanpa tahu ada yang salah.
+    function responsKosong() {
+      const body = new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+          c.close();
+        },
+      });
+      return new Response(body, { status: 200 });
+    }
+
+    const panggil = vi.fn()
+      .mockResolvedValueOnce(responsKosong())
+      .mockResolvedValueOnce(responsSSE("dari cadangan"));
+    vi.stubGlobal("fetch", panggil);
+
+    const kejadian = [];
+    for await (const k of kirim([{ role: "user", content: "hai" }], { rantai: ["kosong", "cadangan"] })) {
+      kejadian.push(k);
+    }
+
+    // Model pertama TIDAK boleh dianggap berhasil — harus pindah ke cadangan.
+    expect(panggil).toHaveBeenCalledTimes(2);
+    expect(kejadian.some((k) => k.jenis === "teks" && k.teks === "dari cadangan")).toBe(true);
+  });
+
+  it("aliran kosong pada SATU-SATUNYA model menghasilkan kejadian gagal yang menyebut sebabnya", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      const body = new ReadableStream({
+        start(c) { c.enqueue(new TextEncoder().encode("data: [DONE]\n\n")); c.close(); },
+      });
+      return new Response(body, { status: 200 });
+    }));
+
+    const kejadian = [];
+    for await (const k of kirim([{ role: "user", content: "hai" }], { rantai: ["sunyi"] })) {
+      kejadian.push(k);
+    }
+
+    const akhir = kejadian.at(-1)!;
+    if (akhir.jenis !== "gagal") throw new Error(`kejadian terakhir seharusnya "gagal", bukan ${akhir.jenis}`);
+    expect(akhir.pesan).toContain("sunyi");
+    expect(akhir.pesan).toMatch(/kosong/i);
   });
 });
