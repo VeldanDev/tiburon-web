@@ -11,7 +11,7 @@
  * hacker.
  */
 
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 :root {
   /* ---- Palet ---- */
@@ -36,6 +36,11 @@
   --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", "Fira Code",
     "Consolas", monospace;
 
+  /* Serif kontras-tinggi untuk sapaan dan angka besar. Instrument Serif
+   * dipilih karena karakternya tajam dan tidak netral -- serif di tengah
+   * antarmuka monospace terbaca sebagai keputusan, bukan bawaan. */
+  --font-serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+
   /* ---- Skala radius ----
    * Tiga nilai saja, dipakai menurut peran. Satu radius untuk segalanya
    * meratakan hierarki dan itulah yang membuat halaman terasa generik. */
@@ -59,10 +64,18 @@
   --pendar-bahaya: 0 0 12px rgba(255, 92, 99, 0.4);
   --panel: 0 8px 32px rgba(0, 0, 0, 0.45);
 
-  /* ---- Gerak ---- */
-  --alih-cepat: 150ms ease;
-  --alih: 200ms ease;
-  --alih-jalur: 400ms ease;
+  /* ---- Gerak ----
+   * Kurva bawaan CSS (ease, ease-out) terlalu lemah untuk antarmuka.
+   * Ketiganya diambil dari kurva yang sudah mapan, bukan dikarang. */
+  --keluar: cubic-bezier(0.23, 1, 0.32, 1);
+  --masuk-keluar: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --alih-cepat: 150ms var(--keluar);
+  --alih: 200ms var(--keluar);
+  /* Latar seluruh layar berubah saat ganti jalur. 400ms terasa berat untuk
+   * hal yang disentuh puluhan kali sehari; 250ms masih halus tapi tidak
+   * menghambat. */
+  --alih-jalur: 250ms var(--keluar);
 
   /* ---- Tata letak ---- */
   --lebar-sidebar: 260px;
@@ -131,10 +144,119 @@ body {
   outline-offset: 2px;
 }
 
+/* Sumber korpus naik dari kedalaman.
+ *
+ * Satu-satunya momen beranimasi yang benar-benar dirancang di aplikasi ini,
+ * dan sengaja diikatkan ke pembeda utamanya: saat Tiburon menemukan berkas
+ * dari korpus, chip-nya naik seperti sesuatu yang muncul dari bawah.
+ *
+ * Dipakai CSS animation, bukan JS: gerakannya sudah ditentukan dan tetap
+ * mulus walau halaman sedang sibuk memuat.
+ */
+@keyframes naik-dari-dalam {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.naik {
+  animation: naik-dari-dalam 220ms var(--keluar) backwards;
+}
+
+/* Kursor mengetik. Bukan pulse lembut bawaan Tailwind -- kedipan tegas
+ * dengan langkah, seperti kursor terminal sungguhan. */
+@keyframes kedip {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.kursor {
+  animation: kedip 1.06s steps(1, end) infinite;
+}
+
+
+/* Salju laut — serpihan organik yang terus turun di laut dalam.
+ *
+ * translateY + opacity saja: keduanya berjalan di GPU dan tidak memicu
+ * layout. Durasi panjang (16–30 detik) supaya terasa hanyut, bukan jatuh.
+ */
+@keyframes turun-perlahan {
+  from {
+    transform: translateY(-8vh);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(108vh);
+    opacity: 0;
+  }
+}
+
+.salju-butir {
+  top: 0;
+  animation-name: turun-perlahan;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Denyut sonar — satu cincin mengembang lalu memudar. */
+@keyframes denyut-sonar {
+  from {
+    transform: scale(0.9);
+    opacity: 0.75;
+  }
+  to {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+.sonar-cincin {
+  animation: denyut-sonar 1.04s var(--keluar) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   body {
     transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
+  }
+
+  /* Salju laut dan sonar TIDAK dipicu pengguna, jadi keduanya yang pertama
+   * pergi saat reduced motion diminta. */
+  .salju-laut {
+    display: none;
+  }
+
+  .sonar-cincin {
+    animation: none;
+    opacity: 0.4;
+  }
+
+  /* Gerakan naik dihilangkan, tapi kemunculannya tetap terbaca lewat opacity.
+   * Reduced motion berarti lebih sedikit gerak, bukan nol perubahan. */
+  .naik {
+    animation: none;
+    opacity: 1;
+  }
+
+  .kursor {
+    animation: none;
+    opacity: 1;
   }
 }
