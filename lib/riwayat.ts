@@ -21,23 +21,33 @@ export function dbRiwayat(): string {
 
 function buka(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS percakapan (
-      id TEXT PRIMARY KEY,
-      judul TEXT NOT NULL,
-      pemilik TEXT NOT NULL DEFAULT '',
-      dibuat INTEGER NOT NULL,
-      diperbarui INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS pesan (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      percakapan_id TEXT NOT NULL,
-      peran TEXT NOT NULL,
-      isi TEXT NOT NULL,
-      waktu INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_pesan_percakapan ON pesan(percakapan_id, id);
-  `);
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS percakapan (
+        id TEXT PRIMARY KEY,
+        judul TEXT NOT NULL,
+        pemilik TEXT NOT NULL DEFAULT '',
+        dibuat INTEGER NOT NULL,
+        diperbarui INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS pesan (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        percakapan_id TEXT NOT NULL,
+        peran TEXT NOT NULL,
+        isi TEXT NOT NULL,
+        waktu INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_pesan_percakapan ON pesan(percakapan_id, id);
+    `);
+  } catch (e) {
+    // Handle sudah terbuka (new DatabaseSync berhasil) sebelum exec gagal.
+    // Tanpa menutupnya di sini, handle itu bocor ke pemanggil dan tidak
+    // pernah bisa ditutup siapa pun — lihat uji "tidak membocorkan koneksi
+    // ketika pembuatan tabel gagal". Galatnya tetap naik: ini memperbaiki
+    // kebocorannya, bukan menyembunyikan kegagalannya.
+    db.close();
+    throw e;
+  }
   return db;
 }
 
@@ -83,7 +93,13 @@ export function ambilPercakapan(id: string, dbPath = dbRiwayat()): Pesan[] {
 export function daftarPercakapan(dbPath = dbRiwayat()): RingkasanPercakapan[] {
   const db = buka(dbPath);
   try {
-    return db.prepare("SELECT id, judul, diperbarui FROM percakapan ORDER BY diperbarui DESC")
+    // Tie-breaker `rowid DESC`: `diperbarui` berasal dari Date.now(), yang
+    // beresolusi milidetik — dua percakapan bisa punya nilai yang identik.
+    // Tabel `percakapan` bukan WITHOUT ROWID (PK-nya TEXT, bukan INTEGER),
+    // jadi kolom rowid bawaan tetap ada dan naik sesuai urutan penyisipan.
+    // Tanpa ini, urutan SQLite untuk nilai `diperbarui` yang seri tidak
+    // dijamin — lihat uji "terbaru di atas walau diperbarui sama persis".
+    return db.prepare("SELECT id, judul, diperbarui FROM percakapan ORDER BY diperbarui DESC, rowid DESC")
       .all()
       .map((r) => r as RingkasanPercakapan);
   } finally {
