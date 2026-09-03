@@ -15,55 +15,93 @@ function responsSSE(baris: string[]) {
   return new Response(body, { status: 200 });
 }
 
+/**
+ * Stub fetch yang MENGENALI URL, bukan urutan panggilan.
+ *
+ * Halaman ini memanggil dua endpoint berbeda dalam satu kali kirim:
+ * `/api/percakapan` untuk menyimpan riwayat, lalu `/api/cepat` untuk
+ * jawabannya. Stub berbasis urutan membuat panggilan riwayat memakan jatah
+ * balasan milik chat -- dan lebih buruk lagi, sebuah Response ber-stream
+ * hanya bisa dibaca SEKALI, jadi objek yang sama tidak bisa dipakai ulang.
+ *
+ * `chat` berupa fungsi supaya tiap pemanggilan mendapat stream yang segar.
+ */
+function stubFetch(chat: () => Response | Promise<Response>) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (masuk: RequestInfo | URL) => {
+      const url = String(masuk);
+      if (url.includes("/api/percakapan")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      return chat();
+    }),
+  );
+}
+
 async function kirimPesan(teks: string) {
-  fireEvent.change(screen.getByPlaceholderText("Tanya apa saja…"), {
+  // Dicari lewat PERAN, bukan lewat teks placeholder. Uji yang pecah tiap
+  // kali copy diubah akan diabaikan orang, dan uji yang diabaikan tidak
+  // menjaga apa pun.
+  fireEvent.change(screen.getByRole("textbox"), {
     target: { value: teks },
   });
-  fireEvent.click(screen.getByRole("button"));
+  fireEvent.click(screen.getByRole("button", { name: /kirim pesan/i }));
 }
 
 function tombolKirim(): HTMLButtonElement {
-  return screen.getByRole("button") as HTMLButtonElement;
+  return screen.getByRole("button", { name: /kirim pesan/i }) as HTMLButtonElement;
+}
+
+/**
+ * Membuktikan layar benar-benar PULIH setelah kegagalan.
+ *
+ * Memeriksa `tombolKirim().disabled === false` saja tidak cukup: sesudah
+ * dikirim, kotak teks dikosongkan, jadi tombolnya memang mati karena tidak
+ * ada yang bisa dikirim -- bukan karena terkunci. Yang membedakan keduanya
+ * adalah apakah mengetik lagi menghidupkannya kembali.
+ */
+async function pastikanPulih() {
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "lagi" } });
+  await waitFor(() => {
+    expect(tombolKirim().disabled).toBe(false);
+  });
 }
 
 describe("HalamanObrolan — kegagalan tidak boleh mengunci layar", () => {
   it("fetch melempar → input tidak terkunci selamanya dan galat terlihat", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("jaringan putus")));
+    stubFetch(() => {
+      throw new Error("jaringan putus");
+    });
     render(<HalamanObrolan />);
 
     await kirimPesan("halo");
 
     await waitFor(() => {
-      expect(tombolKirim().disabled).toBe(false);
+      expect(screen.getByText(/jaringan putus/)).toBeTruthy();
     });
-    expect(screen.getByText(/jaringan putus/)).toBeTruthy();
+    await pastikanPulih();
   });
 
   it("server membalas 500 → pesan galat menyebut statusnya", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response("meledak", { status: 500 })),
-    );
+    stubFetch(() => new Response("meledak", { status: 500 }));
     render(<HalamanObrolan />);
 
     await kirimPesan("halo");
 
     await waitFor(() => {
-      expect(tombolKirim().disabled).toBe(false);
+      expect(screen.getByText(/500/)).toBeTruthy();
     });
-    expect(screen.getByText(/500/)).toBeTruthy();
+    await pastikanPulih();
   });
 
   it("kejadian gagal setelah teks parsial → teks parsial tetap ada", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        responsSSE([
-          `data: ${JSON.stringify({ jenis: "teks", teks: "jawaban separuh jalan" })}\n\n`,
-          `data: ${JSON.stringify({ jenis: "gagal", pesan: "model cadangan juga gagal" })}\n\n`,
-          `data: ${JSON.stringify({ jenis: "selesai" })}\n\n`,
-        ]),
-      ),
+    stubFetch(() =>
+      responsSSE([
+        `data: ${JSON.stringify({ jenis: "teks", teks: "jawaban separuh jalan" })}\n\n`,
+        `data: ${JSON.stringify({ jenis: "gagal", pesan: "model cadangan juga gagal" })}\n\n`,
+        `data: ${JSON.stringify({ jenis: "selesai" })}\n\n`,
+      ]),
     );
     render(<HalamanObrolan />);
 
