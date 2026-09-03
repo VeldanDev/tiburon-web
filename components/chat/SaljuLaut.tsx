@@ -61,7 +61,7 @@ export function SaljuLaut({ jalur }: { jalur: Jalur }) {
             left: `${b.kiri}%`,
             width: b.ukuran,
             height: b.ukuran,
-            background: "var(--foam)",
+            background: "var(--butir)",
             opacity: b.buram,
             animationDelay: `-${b.tunda}s`,
             animationDuration: `${b.durasi}s`,
