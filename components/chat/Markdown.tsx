@@ -24,38 +24,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useState } from "react";
-
-/** Tombol salin untuk satu blok kode. */
-function TombolSalin({ teks }: { teks: string }) {
-  const [tersalin, setTersalin] = useState(false);
-
-  async function salin() {
-    try {
-      await navigator.clipboard.writeText(teks);
-      setTersalin(true);
-      window.setTimeout(() => setTersalin(false), 1400);
-    } catch {
-      // Clipboard ditolak (izin, atau konteks tidak aman). Diam saja lebih
-      // baik daripada melempar galat ke tengah percakapan — tombolnya cuma
-      // tidak berubah, dan pengguna masih bisa memblok teksnya sendiri.
-    }
-  }
-
-  return (
-    <button
-      onClick={salin}
-      aria-label={tersalin ? "Kode tersalin" : "Salin kode"}
-      className="rounded-[var(--radius-kecil)] px-2 py-0.5 text-[11px] transition"
-      style={{
-        color: tersalin ? "var(--hidup)" : "var(--redup)",
-        background: "transparent",
-      }}
-    >
-      {tersalin ? "tersalin" : "salin"}
-    </button>
-  );
-}
+import { BlokKode } from "@/components/chat/BlokKode";
 
 /** Ambil teks polos dari anak-anak node, untuk disalin. */
 function keTeks(anak: React.ReactNode): string {
@@ -74,29 +43,11 @@ export function Markdown({ isi }: { isi: string }) {
         remarkPlugins={[remarkGfm]}
         components={{
           pre({ children }) {
-            const teks = keTeks(children);
-            return (
-              <div
-                className="my-3 overflow-hidden rounded-[var(--radius)] border"
-                style={{ borderColor: "var(--garis)", background: "var(--lapis-0)" }}
-              >
-                <div
-                  className="flex items-center justify-between border-b px-3 py-1"
-                  style={{ borderColor: "var(--garis)" }}
-                >
-                  <span className="text-[11px]" style={{ color: "var(--redup)" }}>
-                    kode
-                  </span>
-                  <TombolSalin teks={teks} />
-                </div>
-                {/* overflow-x di pembungkusnya sendiri: baris kode panjang
-                    harus menggulir di dalam bloknya, bukan mendorong seluruh
-                    kolom percakapan jadi lebih lebar dari layar. */}
-                <pre className="overflow-x-auto px-3 py-2.5 text-[13px] leading-[1.6]">
-                  {children}
-                </pre>
-              </div>
-            );
+            // Bahasanya ada di className anak `code` sebagai "language-xxx" --
+            // react-markdown menaruhnya di sana, bukan di `pre`.
+            const anak = children as { props?: { className?: string; children?: React.ReactNode } };
+            const bahasa = /language-(\w+)/.exec(anak?.props?.className ?? "")?.[1] ?? "";
+            return <BlokKode kode={keTeks(children).replace(/\n$/, "")} bahasa={bahasa} />;
           },
           code({ className, children }) {
             // Kode sebaris saja; yang di dalam blok sudah ditangani `pre`

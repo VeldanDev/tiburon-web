@@ -18,7 +18,7 @@
  * bahasa agent coding di terminal, dan tempatnya nanti di jalur ⌘ Kode.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { PemilihJalur, type Jalur } from "@/components/chat/PemilihJalur";
 import { PengukurKedalaman } from "@/components/chat/PengukurKedalaman";
 import { SaljuLaut } from "@/components/chat/SaljuLaut";
@@ -29,7 +29,9 @@ import { KartuSumber } from "@/components/chat/KartuSumber";
 import { HitunganKorpus } from "@/components/chat/HitunganKorpus";
 import { Markdown } from "@/components/chat/Markdown";
 import { AksiPesan } from "@/components/chat/AksiPesan";
+import { PesanPengguna } from "@/components/chat/PesanPengguna";
 import { TandaTiburon } from "@/components/TandaTiburon";
+import { judulDari } from "@/lib/judul";
 import {
   IkonBanding,
   IkonCepat,
@@ -38,7 +40,7 @@ import {
   IkonRadar,
   IkonTiburon,
 } from "@/components/Ikon";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type KejadianAliran =
   | { jenis: "model"; nama: string }
@@ -72,7 +74,44 @@ function bacaKejadian(baris: string): KejadianAliran | null {
   return null;
 }
 
+/**
+ * Batas Suspense mengelilingi layar obrolan.
+ *
+ * WAJIB, bukan pilihan gaya: `useSearchParams` memaksa komponen keluar dari
+ * prerender statis, dan Next menolak membangun halaman ini tanpa batas
+ * Suspense di atasnya ("useSearchParams() should be wrapped in a suspense
+ * boundary"). Batasnya ditaruh di sini, di berkas halaman, supaya kerangka
+ * aplikasi di layout tetap tampil seketika sementara isinya menyusul.
+ */
 export default function HalamanObrolan() {
+  return (
+    <Suspense fallback={<KerangkaObrolan />}>
+      <IsiObrolan />
+    </Suspense>
+  );
+}
+
+/**
+ * Yang tampil selama sepersekian detik sebelum obrolan siap.
+ *
+ * Sengaja bukan pemintal berputar. Yang muncul adalah BENTUK layar yang
+ * sebentar lagi ada -- kolom terpusat dengan komposer di bawah -- sehingga
+ * tidak ada yang berpindah tempat saat isinya datang.
+ */
+function KerangkaObrolan() {
+  return (
+    <div className="flex h-screen items-end justify-center">
+      <div className="mx-auto mb-6 w-full max-w-3xl px-6">
+        <div
+          className="h-[52px] w-full rounded-[var(--radius-besar)] border"
+          style={{ borderColor: "var(--garis)", background: "var(--lapis-1)" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function IsiObrolan() {
   const [jalur, setJalur] = useState<Jalur>("cepat");
   const [pesan, setPesan] = useState<Balasan[]>([]);
   const [teks, setTeks] = useState("");
@@ -88,6 +127,7 @@ export default function HalamanObrolan() {
   } | null>(null);
   const bawah = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const paramCari = useSearchParams();
 
   // Menu perintah muncul saat kotak diawali "/" dan belum ada spasi.
   const menuTerbuka = teks.startsWith("/") && !teks.includes(" ");
@@ -138,11 +178,16 @@ export default function HalamanObrolan() {
     let dibatalkan = false;
     (async () => {
       try {
-        const r = await fetch("/api/percakapan");
-        if (!r.ok) throw new Error(`daftar percakapan: HTTP ${r.status}`);
-        const daftar: { id: string }[] = await r.json();
-        if (dibatalkan || !daftar.length) return;
-        const id = daftar[0].id;
+        // `?id=` dari sidebar menang. Tanpa ini, mengklik percakapan mana pun
+        // di sidebar akan selalu membuka percakapan TERBARU, bukan yang diklik.
+        let id = paramCari.get("id");
+        if (!id) {
+          const r = await fetch("/api/percakapan");
+          if (!r.ok) throw new Error(`daftar percakapan: HTTP ${r.status}`);
+          const daftar: { id: string }[] = await r.json();
+          if (dibatalkan || !daftar.length) return;
+          id = daftar[0].id;
+        }
         const rp = await fetch(`/api/percakapan?id=${id}`);
         if (!rp.ok) throw new Error(`isi percakapan: HTTP ${rp.status}`);
         const lama: { role: string; content: string }[] = await rp.json();
@@ -161,14 +206,17 @@ export default function HalamanObrolan() {
     return () => {
       dibatalkan = true;
     };
-  }, []);
+    // Dijalankan ulang tiap kali `?id=` berubah: berpindah percakapan lewat
+    // sidebar tidak memuat ulang halaman, jadi tanpa ketergantungan ini isi
+    // percakapan lama akan tetap terpampang di bawah judul yang baru.
+  }, [paramCari]);
 
   async function pastikanPercakapan(judul: string): Promise<string | null> {
     if (idPercakapan) return idPercakapan;
     try {
       const r = await fetch("/api/percakapan", {
         method: "POST",
-        body: JSON.stringify({ judul: judul.slice(0, 60) }),
+        body: JSON.stringify({ judul: judulDari(judul) }),
       });
       if (!r.ok) return null;
       const { id } = await r.json();
@@ -310,6 +358,21 @@ export default function HalamanObrolan() {
   }
 
   /**
+   * Sunting satu pertanyaan lalu jalankan ulang dari titik itu.
+   *
+   * Semua yang ada SETELAH pesan itu dibuang, termasuk pertanyaan-pertanyaan
+   * berikutnya. Terasa keras, tapi alternatifnya lebih buruk: jawaban dan
+   * pertanyaan lanjutan yang muncul karena versi lama tidak lagi masuk akal
+   * begitu premisnya berubah, dan menyimpannya menghasilkan riwayat yang tidak
+   * mungkin pernah terjadi.
+   */
+  async function sunting(indeks: number, baru: string) {
+    if (sibuk) return;
+    const sebelumnya = pesan.slice(0, indeks);
+    await jalankan(baru, [...sebelumnya, { peran: "user", isi: baru }]);
+  }
+
+  /**
    * Inti pengiriman, dipakai bersama oleh `kirim` dan `ulangi`.
    *
    * `riwayat` sudah harus berakhir pada pesan pengguna yang mau dijawab —
@@ -377,7 +440,10 @@ export default function HalamanObrolan() {
    * pertanyaan yang dibandingkan, jadi keduanya dirender berdampingan.
    */
   type Kelompok =
-    | { jenis: "pengguna"; isi: string }
+    // `indeks` dibawa serta supaya menyunting tahu persis di mana pesan itu
+    // berada di `pesan[]`; posisi di dalam `kelompok` tidak sama, karena mode
+    // banding memampatkan dua balasan jadi satu kelompok.
+    | { jenis: "pengguna"; isi: string; indeks: number }
     | { jenis: "tunggal"; balasan: Balasan[] }
     | { jenis: "banding"; balasan: Balasan[] };
 
@@ -385,7 +451,7 @@ export default function HalamanObrolan() {
   for (let i = 0; i < pesan.length; i++) {
     const p = pesan[i];
     if (p.peran === "user") {
-      kelompok.push({ jenis: "pengguna", isi: p.isi });
+      kelompok.push({ jenis: "pengguna", isi: p.isi, indeks: i });
       continue;
     }
     const berikut = pesan[i + 1];
@@ -641,14 +707,12 @@ export default function HalamanObrolan() {
             <div className="space-y-7">
               {kelompok.map((g, gi) =>
                 g.jenis === "pengguna" ? (
-                  <div key={gi} className="flex justify-end">
-                    <div
-                      className="max-w-[85%] rounded-[var(--radius-besar)] px-4 py-2.5 text-[14px]"
-                      style={{ background: "var(--ocean)", color: "var(--shell)" }}
-                    >
-                      {g.isi}
-                    </div>
-                  </div>
+                  <PesanPengguna
+                    key={gi}
+                    isi={g.isi}
+                    sibuk={sibuk}
+                    onSunting={(baru) => void sunting(g.indeks, baru)}
+                  />
                 ) : g.jenis === "banding" ? (
                   /* Dua jawaban berdampingan. Bedanya bukan gaya bahasa --
                      yang satu membaca korpusmu, yang satu tidak. Perbedaan

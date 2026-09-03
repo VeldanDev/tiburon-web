@@ -23,7 +23,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const { GET, POST, PUT } = await import("@/app/api/percakapan/route");
+const { GET, POST, PUT, PATCH, DELETE } = await import("@/app/api/percakapan/route");
 
 describe("/api/percakapan", () => {
   it("membalas daftar kosong, bukan 404, ketika belum ada obrolan", async () => {
@@ -103,5 +103,83 @@ describe("/api/percakapan", () => {
       }),
     );
     expect(resp.status).toBe(400);
+  });
+});
+
+describe("ganti nama dan hapus", () => {
+  async function buat(judul: string): Promise<string> {
+    const r = await POST(
+      new Request("http://localhost/api/percakapan", {
+        method: "POST",
+        body: JSON.stringify({ judul }),
+      }),
+    );
+    return (await r.json()).id;
+  }
+
+  it("mengganti judul tanpa mengubah urutan sidebar", async () => {
+    const lama = await buat("Lama");
+    // Jeda 2ms supaya `diperbarui` keduanya pasti berbeda; tanpa itu urutan
+    // ditentukan tie-breaker rowid dan uji ini tidak menguji apa pun.
+    await new Promise((r) => setTimeout(r, 2));
+    const baru = await buat("Baru");
+
+    await PATCH(
+      new Request("http://localhost/api/percakapan", {
+        method: "PATCH",
+        body: JSON.stringify({ id: lama, judul: "Lama, diganti nama" }),
+      }),
+    );
+
+    const daftar = await (await GET(new Request("http://localhost/api/percakapan"))).json();
+    // Yang baru TETAP di atas: mengganti nama bukan "memakai" percakapan.
+    expect(daftar[0].id).toBe(baru);
+    expect(daftar[1].judul).toBe("Lama, diganti nama");
+  });
+
+  it("membalas 404 saat mengganti judul percakapan yang tidak ada", async () => {
+    const r = await PATCH(
+      new Request("http://localhost/api/percakapan", {
+        method: "PATCH",
+        body: JSON.stringify({ id: "tidak-ada", judul: "x" }),
+      }),
+    );
+    expect(r.status).toBe(404);
+  });
+
+  it("menghapus percakapan beserta pesannya, tanpa meninggalkan yatim", async () => {
+    const id = await buat("Akan dihapus");
+    await PUT(
+      new Request("http://localhost/api/percakapan", {
+        method: "PUT",
+        body: JSON.stringify({ id, pesan: { role: "user", content: "halo" } }),
+      }),
+    );
+
+    const r = await DELETE(new Request(`http://localhost/api/percakapan?id=${id}`, { method: "DELETE" }));
+    expect(r.status).toBe(200);
+
+    expect(await (await GET(new Request("http://localhost/api/percakapan"))).json()).toEqual([]);
+
+    // Inti ujinya: skema ini TIDAK punya FOREIGN KEY, jadi SQLite tidak
+    // merapikan pesannya sendiri. Kalau hapusPercakapan lupa menghapus baris
+    // pesan, baris itu tetap tinggal di basis data selamanya tanpa terlihat.
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(process.env.TIBURON_RIWAYAT_DB!);
+    try {
+      const sisa = db.prepare("SELECT COUNT(*) AS n FROM pesan").get() as { n: number };
+      expect(sisa.n).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("membalas 404 saat menghapus yang tidak ada, dan 400 tanpa id", async () => {
+    expect(
+      (await DELETE(new Request("http://localhost/api/percakapan?id=hantu", { method: "DELETE" }))).status,
+    ).toBe(404);
+    expect(
+      (await DELETE(new Request("http://localhost/api/percakapan", { method: "DELETE" }))).status,
+    ).toBe(400);
   });
 });
