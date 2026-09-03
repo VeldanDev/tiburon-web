@@ -62,7 +62,7 @@ export function MenuPerintah({
           role="option"
           aria-selected={false}
           onClick={() => onPilih(p)}
-          className="flex w-full items-baseline gap-3 px-3 py-2 text-left transition hover:bg-white/5"
+          className="baris-nav flex w-full items-baseline gap-3 px-3 py-2 text-left"
         >
           <span className="text-[13px]" style={{ color: "var(--surface)" }}>
             {p.kunci}

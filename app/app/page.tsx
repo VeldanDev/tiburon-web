@@ -35,6 +35,7 @@ import { TombolSuara } from "@/components/chat/TombolSuara";
 import { BilahAtas } from "@/components/chat/BilahAtas";
 import { PanelPintasan } from "@/components/chat/PanelPintasan";
 import { PanelArtefak, ChipArtefak } from "@/components/chat/PanelArtefak";
+import { KartuStatistik } from "@/components/chat/KartuStatistik";
 import { JejakAlat, type Jejak } from "@/components/chat/JejakAlat";
 import { TandaTiburon } from "@/components/TandaTiburon";
 import { judulDari } from "@/lib/judul";
@@ -978,8 +979,15 @@ function IsiObrolan() {
                 ))}
               </div>
 
+              {/* Statistik pemakaian -- gagasan dari layar pembuka Claude
+                  desktop. Menggantikan ruang kosong dengan sesuatu yang tidak
+                  bisa ditebak siapa pun kecuali aplikasi ini sendiri. */}
+              <div className="mt-12">
+                <KartuStatistik />
+              </div>
+
               {/* Bagian "Aktif" -- gagasan dari Claude desktop. */}
-              <div className="mt-14">
+              <div className="mt-8">
                 <div
                   className="mb-3 flex items-baseline justify-between text-[12px]"
                   style={{ color: "var(--redup)" }}

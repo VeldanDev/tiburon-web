@@ -23,6 +23,7 @@
 
 import { useEffect, useState } from "react";
 import { IkonSalin, IkonCentang } from "@/components/Ikon";
+import { useTema } from "@/components/PemilihTema";
 
 /**
  * Tema Shiki dibangun dari palet Tiburon, bukan diambil dari tema bawaan.
@@ -45,6 +46,38 @@ export const TEMA = {
     { scope: ["variable", "meta.definition.variable"], settings: { foreground: "#F4F9FD" } },
     { scope: ["variable.parameter"], settings: { foreground: "#A8DCFB" } },
     { scope: ["invalid", "invalid.illegal"], settings: { foreground: "#FF5C63" } },
+    { scope: ["punctuation", "meta.brace"], settings: { foreground: "#5B7FA6" } },
+  ],
+};
+
+/**
+ * Tema terang, dari palet yang sama.
+ *
+ * BUKAN tema gelap yang dibalik. Yang berubah adalah peran, bukan nilai:
+ * --shell dari teks paling terang menjadi latar, --deep dari panel menjadi
+ * teks. Dan dua warna terpaksa digelapkan dengan mencampur --deep, karena
+ * kontras aslinya di atas latar putih terlalu rendah untuk dibaca:
+ *
+ *   --surface  #3FA9F5 di atas #F4F9FD hanya ~2,3:1
+ *   --foam     #A8DCFB praktis tak terlihat
+ *
+ * Nilai campurannya dihitung sekali di sini sebagai hex, bukan color-mix:
+ * Shiki mengurai temanya sendiri di JavaScript dan tidak mengenal fungsi CSS.
+ */
+export const TEMA_TERANG = {
+  name: "tiburon-terang",
+  type: "light" as const,
+  colors: { "editor.background": "#F4F9FD", "editor.foreground": "#0B2545" },
+  settings: [
+    { scope: ["comment", "punctuation.definition.comment"], settings: { foreground: "#5B7FA6", fontStyle: "italic" } },
+    { scope: ["string", "constant.other.symbol"], settings: { foreground: "#1B6B4A" } },
+    { scope: ["constant.numeric", "constant.language"], settings: { foreground: "#9A5B12" } },
+    { scope: ["keyword", "storage", "storage.type", "keyword.control"], settings: { foreground: "#14487F" } },
+    { scope: ["entity.name.function", "support.function", "meta.function-call"], settings: { foreground: "#0F5E8C" } },
+    { scope: ["entity.name.type", "support.type", "support.class"], settings: { foreground: "#14487F" } },
+    { scope: ["variable", "meta.definition.variable"], settings: { foreground: "#0B2545" } },
+    { scope: ["variable.parameter"], settings: { foreground: "#0F5E8C" } },
+    { scope: ["invalid", "invalid.illegal"], settings: { foreground: "#B3272E" } },
     { scope: ["punctuation", "meta.brace"], settings: { foreground: "#5B7FA6" } },
   ],
 };
@@ -78,7 +111,8 @@ const ALIAS: Record<string, string> = {
 
 function highlighter(): Promise<Penyorot> {
   janjiHighlighter ??= import("shiki").then(
-    (s) => s.createHighlighter({ themes: [TEMA], langs: BAHASA }) as unknown as Promise<Penyorot>,
+    (s) =>
+      s.createHighlighter({ themes: [TEMA, TEMA_TERANG], langs: BAHASA }) as unknown as Promise<Penyorot>,
   );
   return janjiHighlighter;
 }
@@ -106,6 +140,10 @@ export function BlokKode({
   const baris = kode.split("\n").length;
 
   const nama = ALIAS[bahasa.toLowerCase()] ?? bahasa.toLowerCase();
+  // Disorot ulang saat tema berganti. Tanpa ketergantungan ini, blok kode
+  // tetap memakai warna tema lama sampai halaman dimuat ulang -- kotak gelap
+  // di tengah halaman terang.
+  const tema = useTema() === "terang" ? "tiburon-terang" : "tiburon";
 
   useEffect(() => {
     let dibatalkan = false;
@@ -114,7 +152,7 @@ export function BlokKode({
         const h = await highlighter();
         // Bahasa tak dikenal jatuh ke "text": hasil yang benar, bukan galat.
         const dipakai = h.getLoadedLanguages().includes(nama) ? nama : "text";
-        const hasil = h.codeToHtml(kode, { lang: dipakai, theme: "tiburon" });
+        const hasil = h.codeToHtml(kode, { lang: dipakai, theme: tema });
         if (!dibatalkan) setHtml(hasil);
       } catch {
         // Highlighter gagal dimuat (luring, bundel rusak). Kode tetap terbaca
@@ -124,7 +162,7 @@ export function BlokKode({
     return () => {
       dibatalkan = true;
     };
-  }, [kode, nama]);
+  }, [kode, nama, tema]);
 
   async function salin() {
     try {

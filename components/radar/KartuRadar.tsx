@@ -3,10 +3,11 @@ import { IkonTautanLuar } from "@/components/Ikon";
 
 export function KartuRadar({ item }: { item: ItemRadar }) {
   return (
-    <article className="rounded-[var(--radius)] border border-white/10 bg-white/5 p-4">
+    <article className="rounded-[var(--radius)] border p-4"
+      style={{ borderColor: "var(--garis)", background: "var(--sorot-lemah)" }}>
       <div className="mb-1 flex items-center gap-2 text-xs opacity-70">
         <span className="tabular-nums">{item.nomor}</span>
-        <span className="rounded-full bg-white/10 px-2 py-0.5">{item.kategori}</span>
+        <span className="rounded-full px-2 py-0.5" style={{ background: "var(--sorot)" }}>{item.kategori}</span>
       </div>
       <h3 className="font-medium text-balance">{item.judul}</h3>
       <p className="mt-1 text-sm opacity-80">{item.ringkasan}</p>

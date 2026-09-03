@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import { IkonHapus, IkonCentang, IkonPeringatan, IkonBaru } from "@/components/Ikon";
+import { PemilihTema } from "@/components/PemilihTema";
 
 type Ingatan = { id: string; isi: string; dibuat: number };
 
@@ -113,6 +114,21 @@ export default function HalamanPengaturan() {
             {pesan}
           </div>
         )}
+
+        {/* Tampilan ditaruh PALING ATAS dan di luar blok `memuat`: ia tidak
+            menunggu apa pun dari server -- preferensinya ada di browser --
+            jadi menyembunyikannya di balik pemuatan berarti pengguna menatap
+            halaman kosong sebelum bisa mengganti sesuatu yang sudah siap. */}
+        <section className="mb-10">
+          <h2 className="mb-1 text-[15px]" style={{ color: "var(--teks-utama)" }}>
+            Tampilan
+          </h2>
+          <p className="mb-3 text-[12px]" style={{ color: "var(--teks-redup)" }}>
+            Disimpan per perangkat, bukan per akun: layar laptop di kamar gelap
+            dan layar HP di bawah matahari menuntut jawaban yang berbeda.
+          </p>
+          <PemilihTema />
+        </section>
 
         {memuat ? (
           <p className="text-[13px]" style={{ color: "var(--teks-redup)" }}>

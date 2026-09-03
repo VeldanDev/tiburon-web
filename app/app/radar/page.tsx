@@ -61,9 +61,9 @@ export default function HalamanRadar() {
   return (
     <div className="mx-auto max-w-3xl p-6">
       <div className="mb-4 flex items-center gap-3">
-        <button onClick={() => geser(-1)} className="rounded px-2 py-1 hover:bg-white/10"><IkonSebelum ukuran={15} /></button>
+        <button onClick={() => geser(-1)} className="baris-nav rounded px-2 py-1"><IkonSebelum ukuran={15} /></button>
         <h1 className="text-lg font-semibold tabular-nums">Radar Pagi · {tanggal}</h1>
-        <button onClick={() => geser(1)} className="rounded px-2 py-1 hover:bg-white/10"><IkonSesudah ukuran={15} /></button>
+        <button onClick={() => geser(1)} className="baris-nav rounded px-2 py-1"><IkonSesudah ukuran={15} /></button>
       </div>
 
       {laporan && (

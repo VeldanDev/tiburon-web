@@ -54,7 +54,7 @@ export function PemilihJalur({
           onClick={() => onGanti(j)}
           title={JELAS[j]}
           className={`relative rounded-full px-3 py-1 text-sm transition ${
-            j === jalur ? "bg-white/15 font-medium" : "opacity-60 hover:opacity-100"
+            j === jalur ? "jalur-aktif font-medium" : "opacity-60 hover:opacity-100"
           }`}
         >
           <span className="flex items-center gap-1.5">

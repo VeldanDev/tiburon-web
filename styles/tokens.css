@@ -149,14 +149,96 @@
   --latar-agen: color-mix(in oklab, var(--deep) 45%, var(--abyss));
   --latar-kode: var(--abyss);
 
+  /* ---- Sorot ----
+   * Lapisan tipis untuk hover dan penanda terpilih. Di dunia gelap ia PUTIH
+   * transparan; di dunia terang ia harus HITAM transparan, atau hover jadi
+   * tidak terlihat sama sekali. Dijadikan token supaya satu tempat yang
+   * mengaturnya, bukan sepuluh `bg-white/5` yang tersebar di komponen. */
+  --sorot-lemah: rgba(255, 255, 255, 0.05);
+  --sorot: rgba(255, 255, 255, 0.1);
+  --sorot-kuat: rgba(255, 255, 255, 0.15);
+
+  /* Warna butir salju laut. Di dunia terang ia harus lebih gelap dari
+   * latarnya, atau tidak ada satu pun butir yang terlihat. */
+  --butir: var(--foam);
 }
 
-:root:not([data-tema="terang"]) {
-  --latar-cepat: var(--deep);
-}
+/* =====================================================================
+ * TEMA TERANG
+ *
+ * Bukan tema gelap yang dibalik. Kalau gelap adalah dasar samudra, terang
+ * adalah PERMUKAAN pada siang hari: air dangkal yang tembus cahaya. Itu
+ * kenapa latarnya tetap kebiruan (--shell) dan bukan putih murni, dan kenapa
+ * urutan warnanya membalik peran alih-alih membalik nilai — --shell yang di
+ * dunia gelap adalah teks paling terang menjadi latar paling terang, dan
+ * --deep yang di sana adalah panel menjadi teks utama.
+ *
+ * Semua warna diambil dari palet yang sama. Tidak ada satu pun hex baru.
+ *
+ * Dua hal yang TIDAK bisa sekadar dibalik, dan ditangani sendiri:
+ *
+ *   PENDAR   cahaya yang memancar hanya masuk akal di kegelapan. Di terang ia
+ *            jadi bayangan halus -- benda di bawah sinar matahari punya
+ *            bayangan, bukan aura.
+ *   KABUT    di gelap ia menggelapkan ke bawah seperti air yang makin dalam.
+ *            Di terang arahnya sama tapi jauh lebih tipis: kertas di bawah
+ *            cahaya tidak menghitam di tepi bawahnya.
+ * ===================================================================== */
+:root[data-tema="terang"] {
+  color-scheme: light;
 
-:root[data-tema="gelap"] {
-  --latar-cepat: var(--deep);
+  /* Tangga permukaan, membalik peran: paling terang di kanvas. */
+  --lapis-0: var(--shell);
+  --lapis-1: color-mix(in oklab, var(--shell) 88%, var(--foam));
+  --lapis-2: color-mix(in oklab, var(--shell) 72%, var(--foam));
+  --lapis-3: var(--foam);
+
+  /* Tangga teks. --surface (#3FA9F5) SENGAJA tidak dipakai untuk teks di sini:
+   * kontrasnya terhadap --shell cuma sekitar 2,3:1, jauh di bawah ambang yang
+   * bisa dibaca. Ia tetap dipakai untuk isian dan garis, tempat kontras
+   * serendah itu tidak jadi masalah. */
+  --teks-utama: var(--deep);
+  --teks-kedua: var(--ocean);
+  --teks-redup: var(--redup);
+
+  --garis: color-mix(in oklab, var(--foam) 62%, var(--ocean));
+  --hover: color-mix(in oklab, var(--shell) 70%, var(--foam));
+
+  /* Merah karang dan oranye dari palet terlalu terang di atas latar putih.
+   * Digelapkan dengan mencampurkan --deep, bukan diganti warna lain -- yang
+   * berubah kepekatannya, bukan identitasnya. */
+  --danger: color-mix(in oklab, #FF5C63 72%, var(--deep));
+  --warn: color-mix(in oklab, #FFB454 62%, var(--deep));
+  --hidup: color-mix(in oklab, #FFB454 55%, var(--deep));
+
+  --sorot-lemah: rgba(11, 37, 69, 0.05);
+  --sorot: rgba(11, 37, 69, 0.09);
+  --sorot-kuat: rgba(11, 37, 69, 0.14);
+
+  --butir: var(--ocean);
+
+  /* Pendar jadi bayangan. Nilainya tetap disebut "pendar" supaya komponen
+   * tidak perlu tahu tema apa yang sedang berlaku. */
+  --pendar: 0 1px 3px rgba(11, 37, 69, 0.16);
+  --pendar-kuat: 0 2px 10px rgba(11, 37, 69, 0.2), 0 1px 3px rgba(11, 37, 69, 0.12);
+  --pendar-bahaya: 0 1px 4px rgba(255, 92, 99, 0.3);
+  --pendar-hidup: 0 1px 4px rgba(180, 120, 40, 0.3);
+  --panel: 0 8px 28px rgba(11, 37, 69, 0.14);
+
+  --kabut-dalam: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(20, 72, 127, 0.03) 70%,
+    rgba(20, 72, 127, 0.07) 100%
+  );
+
+  /* Jalur tetap terbaca sebagai kedalaman: makin dalam makin biru, bukan
+   * makin gelap. Yang berubah adalah kepekatan airnya, bukan cahayanya. */
+  --latar-cepat: var(--shell);
+  --latar-tiburon: color-mix(in oklab, var(--shell) 90%, var(--foam));
+  --latar-agen: color-mix(in oklab, var(--shell) 78%, var(--foam));
+  --latar-kode: color-mix(in oklab, var(--shell) 64%, var(--foam));
 }
 
 body {
@@ -203,7 +285,7 @@ body {
 
 @media (hover: hover) and (pointer: fine) {
   .baris-nav:hover {
-    background-color: rgba(255, 255, 255, 0.045);
+    background-color: var(--sorot-lemah);
     transform: translateX(2px);
   }
 
@@ -386,7 +468,7 @@ body {
 @media (hover: hover) and (pointer: fine) {
   .aksi-pesan:hover {
     color: var(--teks-kedua);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--sorot-lemah);
   }
 }
 
@@ -417,7 +499,7 @@ body {
 
 @media (hover: hover) and (pointer: fine) {
   .baris-obrolan:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--sorot-lemah);
   }
 }
 
@@ -626,4 +708,25 @@ body {
   .tanda-sonar {
     animation: none;
   }
+}
+
+/* Jalur yang sedang dipilih di komposer. Dulu `bg-white/15` yang ditulis mati
+ * di komponen — tak terlihat sama sekali di tema terang. */
+.jalur-aktif {
+  background-color: var(--sorot-kuat);
+}
+
+/* ---- Tema terang: penyesuaian yang tidak cukup lewat token ---- */
+
+/* Salju laut di dunia terang harus LEBIH GELAP dari latarnya. Butir putih di
+ * atas air dangkal tidak terlihat sama sekali, dan animasinya tetap berjalan
+ * membakar GPU untuk sesuatu yang tak ada. */
+:root[data-tema="terang"] .salju-butir {
+  opacity: 0.35;
+}
+
+/* Kartu sumber memakai --abyss sebagai latar isinya, ditulis mati sejak
+ * sebelum ada tema. Di terang itu jadi kotak hitam pekat di tengah halaman. */
+:root[data-tema="terang"] .isi-sumber {
+  background: var(--lapis-2) !important;
 }

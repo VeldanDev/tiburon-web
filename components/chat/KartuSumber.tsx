@@ -112,7 +112,7 @@ export function KartuSumber({ berkas, kueri }: { berkas: string; kueri: string }
       >
         <div className="overflow-hidden">
           <div
-            className="mt-2 rounded-[var(--radius)] border p-3 text-[12px] leading-[1.7]"
+            className="isi-sumber mt-2 rounded-[var(--radius)] border p-3 text-[12px] leading-[1.7]"
             style={{ borderColor: "var(--garis)", background: "var(--abyss)" }}
           >
             {memuat && <span style={{ color: "var(--redup)" }}>Membaca korpus…</span>}

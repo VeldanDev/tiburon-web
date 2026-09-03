@@ -592,3 +592,45 @@ export function IkonAgen(p: Props) {
     />
   );
 }
+
+/** Ikut sistem — layar. */
+export function IkonLayar(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <rect x="2.5" y="4" width="19" height="13" rx="2" />
+          <path d="M9 20.5h6M12 17v3.5" />
+        </>
+      }
+    />
+  );
+}
+
+/** Terang — matahari di atas garis air. Sinarnya tidak simetris penuh:
+ *  satu sinar lebih panjang, mengulang sudut tajam keluarga ikon ini. */
+export function IkonMatahari(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          <path d="m5.2 5.2 2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1" />
+        </>
+      }
+    />
+  );
+}
+
+/** Gelap — bulan sabit. */
+export function IkonBulan(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" />}
+    />
+  );
+}
