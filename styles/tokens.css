@@ -144,6 +144,9 @@
    * datang dari --kabut-dalam yang dilapiskan di atasnya. */
   --latar-cepat: var(--deep);
   --latar-tiburon: color-mix(in oklab, var(--deep) 72%, var(--abyss));
+  /* Agen duduk di antara Tiburon dan Kode: ia menyelam lebih dalam daripada
+   * pencarian sekali jalan, tapi masih percakapan, bukan kerja kode. */
+  --latar-agen: color-mix(in oklab, var(--deep) 45%, var(--abyss));
   --latar-kode: var(--abyss);
 
 }

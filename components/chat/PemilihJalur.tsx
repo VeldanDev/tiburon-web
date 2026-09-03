@@ -1,25 +1,43 @@
 "use client";
 
-import { IkonCepat, IkonKode, IkonTiburon } from "@/components/Ikon";
+import { IkonAgen, IkonCepat, IkonKode, IkonTiburon } from "@/components/Ikon";
 
-export type Jalur = "cepat" | "tiburon" | "kode";
+export type Jalur = "cepat" | "tiburon" | "agen" | "kode";
 
 /** Kedalaman = jalur. Latar berubah supaya jalur aktif terasa, bukan dibaca. */
 export const LATAR_JALUR: Record<Jalur, string> = {
   cepat: "var(--latar-cepat)",
   tiburon: "var(--latar-tiburon)",
+  agen: "var(--latar-agen)",
   kode: "var(--latar-kode)",
 };
 
 const LABEL: Record<Jalur, string> = {
   cepat: "Cepat",
   tiburon: "Tiburon",
+  agen: "Agen",
   kode: "Kode",
+};
+
+/**
+ * Keterangan yang muncul saat kursor menyentuh tiap jalur.
+ *
+ * Nama jalurnya sendiri tidak menjelaskan bedanya, dan perbedaan antara
+ * "Tiburon" dan "Agen" justru yang paling sulit ditebak: keduanya membaca
+ * korpus, tapi yang satu sekali di awal dan yang satu berkali-kali sesuai
+ * kebutuhannya sendiri.
+ */
+const JELAS: Record<Jalur, string> = {
+  cepat: "Menjawab langsung. Tidak membaca korpus, paling hemat kuota.",
+  tiburon: "Mencari korpus sekali di awal, lalu menjawab dari hasilnya.",
+  agen: "Boleh mencari sendiri berkali-kali sampai puas. Paling teliti, paling boros.",
+  kode: "Untuk pertanyaan kode. Paling dalam.",
 };
 
 const IKON: Record<Jalur, (p: { ukuran?: number; className?: string }) => React.ReactElement> = {
   cepat: IkonCepat,
   tiburon: IkonTiburon,
+  agen: IkonAgen,
   kode: IkonKode,
 };
 
@@ -34,6 +52,7 @@ export function PemilihJalur({
           role="tab"
           aria-selected={j === jalur}
           onClick={() => onGanti(j)}
+          title={JELAS[j]}
           className={`relative rounded-full px-3 py-1 text-sm transition ${
             j === jalur ? "bg-white/15 font-medium" : "opacity-60 hover:opacity-100"
           }`}

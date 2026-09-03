@@ -569,3 +569,26 @@ export function IkonSuara(p: Props) {
     />
   );
 }
+
+/**
+ * Mode Agen — kawanan: tiga sirip bergerak bersama.
+ *
+ * Bukan roda gigi atau robot. Yang membedakan mode ini bukan "otomatis"
+ * melainkan bahwa Tiburon boleh berkeliling MENCARI sendiri sebelum menjawab,
+ * dan kawanan hiu yang menyisir adalah gambaran yang tepat untuk itu.
+ */
+export function IkonAgen(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M2.5 19h19" />
+          <path d="M4.5 19c1.4-3 3-5.2 5.5-6.8-.3 2.5-.7 4.7-1.3 6.8" />
+          <path d="M13 19c1.2-4.2 3-7.4 5.8-9.8-.4 3.6-1 6.9-2 9.8" />
+          <path d="M9.5 8.5 11 7l1.5 1.5" />
+        </>
+      }
+    />
+  );
+}

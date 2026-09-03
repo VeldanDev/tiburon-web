@@ -21,7 +21,8 @@ import type { Jalur } from "@/components/chat/PemilihJalur";
 
 const ZONA: { jalur: Jalur; meter: string; nama: string; posisi: number }[] = [
   { jalur: "cepat", meter: "0", nama: "permukaan", posisi: 0 },
-  { jalur: "tiburon", meter: "200", nama: "zona senja", posisi: 50 },
+  { jalur: "tiburon", meter: "200", nama: "zona senja", posisi: 40 },
+  { jalur: "agen", meter: "600", nama: "menyisir", posisi: 70 },
   { jalur: "kode", meter: "1000", nama: "dasar", posisi: 100 },
 ];
 
