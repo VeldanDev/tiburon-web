@@ -12,14 +12,39 @@ export default function HalamanRadar() {
   const [tanggal, setTanggal] = useState(() => iso(new Date()));
   const [laporan, setLaporan] = useState<LaporanRadar | null>(null);
   const [pesan, setPesan] = useState("");
+  const [catatan, setCatatan] = useState("");
   const [hanyaRelevan, setHanyaRelevan] = useState(false);
 
   useEffect(() => {
-    setLaporan(null);
-    setPesan("");
+    // dibatalkan mencegah respons tanggal lama menimpa tanggal baru: kalau
+    // pengguna menekan ◀ dua kali cepat, permintaan pertama bisa selesai
+    // belakangan dan tidak boleh menang atas permintaan kedua yang lebih baru.
+    let dibatalkan = false;
     fetch(`/api/radar?tanggal=${tanggal}`)
-      .then(async (r) => (r.ok ? setLaporan(await r.json()) : setPesan((await r.json()).pesan)))
-      .catch((e) => setPesan(String(e)));
+      .then(async (r) => {
+        const data = await r.json();
+        if (dibatalkan) return;
+        if (r.ok) {
+          setLaporan(data);
+          setPesan("");
+          // catatan tanggal lama tidak boleh menempel ke tanggal baru --
+          // dikosongkan tiap kali laporan baru berhasil dimuat.
+          setCatatan(data.catatan ?? "");
+        } else {
+          setLaporan(null);
+          setCatatan("");
+          setPesan(data.pesan);
+        }
+      })
+      .catch((e) => {
+        if (dibatalkan) return;
+        setLaporan(null);
+        setCatatan("");
+        setPesan(String(e));
+      });
+    return () => {
+      dibatalkan = true;
+    };
   }, [tanggal]);
 
   const geser = (hari: number) => {
@@ -48,6 +73,16 @@ export default function HalamanRadar() {
       )}
 
       {pesan && <p className="rounded border border-white/20 p-4 text-sm opacity-80">{pesan}</p>}
+
+      {catatan && (
+        <div
+          role="alert"
+          className="mb-4 rounded-[var(--radius)] border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--surface)" }}
+        >
+          ⚠️ {catatan}
+        </div>
+      )}
 
       <div className="space-y-3">
         {tampil.map((item) => <KartuRadar key={`${item.nomor}-${item.url}`} item={item} />)}
