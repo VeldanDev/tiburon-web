@@ -23,6 +23,7 @@ import {
   IkonKorpus,
   IkonRadar,
   IkonSumber,
+  IkonAtur,
   IkonCari,
   IkonTiburon,
   IkonTutup,
@@ -57,6 +58,7 @@ const NAV = [
   { Ikon: IkonSumber, label: "Riwayat sumber", href: "/app/sumber" },
   { Ikon: IkonJadwal, label: "Tugas terjadwal", href: "/app/jadwal" },
   { Ikon: IkonDesain, label: "Papan desain", href: "/app/desain" },
+  { Ikon: IkonAtur, label: "Pengaturan", href: "/app/pengaturan" },
 ];
 
 export default function LayoutAplikasi({ children }: { children: React.ReactNode }) {

@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { MeterKonteks } from "@/components/chat/MeterKonteks";
 import {
   IkonUnduh,
   IkonCabang,
@@ -21,6 +22,7 @@ import {
 export function BilahAtas({
   judul,
   jumlahPesan,
+  pesan,
   onEksporMd,
   onEksporJson,
   onCabang,
@@ -28,6 +30,7 @@ export function BilahAtas({
 }: {
   judul: string;
   jumlahPesan: number;
+  pesan: { isi: string }[];
   onEksporMd: () => void;
   onEksporJson: () => void;
   onCabang: () => void;
@@ -64,6 +67,7 @@ export function BilahAtas({
       <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: "var(--teks-redup)" }}>
         {judul}
       </span>
+      <MeterKonteks pesan={pesan} />
       <span className="angka shrink-0 text-[11px]" style={{ color: "var(--teks-redup)" }}>
         {jumlahPesan} pesan
       </span>
