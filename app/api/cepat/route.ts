@@ -15,6 +15,9 @@ export async function POST(req: Request) {
   } catch {
     return new Response("Badan permintaan bukan JSON", { status: 400 });
   }
+  if (typeof badan !== "object" || badan === null || Array.isArray(badan)) {
+    return new Response("Badan permintaan harus objek JSON", { status: 400 });
+  }
   const { jalur = "cepat", pesan } = badan;
   if (!Array.isArray(pesan) || pesan.length === 0) {
     return new Response("Butuh daftar pesan", { status: 400 });
@@ -61,6 +64,10 @@ export async function POST(req: Request) {
         }
       }
 
+      // kirim() TIDAK melempar: galat per-model ditangkap di dalamnya dan
+      // dipancarkan sebagai { jenis: "gagal" }. Jadi aliran ini tidak bisa
+      // putus di tengah seperti cari() di atas. Kalau kontrak itu berubah,
+      // blok ini butuh try/catch juga.
       for await (const k of kirim(pesan, { konteks })) {
         kontrol.enqueue(baris(k));
       }

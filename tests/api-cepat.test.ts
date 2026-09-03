@@ -83,4 +83,14 @@ describe("POST /api/cepat", () => {
     expect(teks).not.toContain("RAHASIA-JANGAN-BOCOR");
     expect(teks).not.toContain("sk-or-v1");
   });
+
+  it("menolak badan JSON yang bukan objek, dengan 400 bukan 500", async () => {
+    for (const badan of ["null", "[]", "42", '"halo"']) {
+      const resp = await POST(
+        new Request("http://localhost/api/cepat", { method: "POST", body: badan }),
+      );
+      expect(resp.status, `badan ${badan} seharusnya 400`).toBe(400);
+      expect(await resp.text()).toMatch(/objek/i);
+    }
+  });
 });
