@@ -25,6 +25,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { BlokKode } from "@/components/chat/BlokKode";
+import { AMBANG_BARIS } from "@/lib/artefak";
 
 /** Ambil teks polos dari anak-anak node, untuk disalin. */
 function keTeks(anak: React.ReactNode): string {
@@ -47,7 +48,13 @@ export function Markdown({ isi }: { isi: string }) {
             // react-markdown menaruhnya di sana, bukan di `pre`.
             const anak = children as { props?: { className?: string; children?: React.ReactNode } };
             const bahasa = /language-(\w+)/.exec(anak?.props?.className ?? "")?.[1] ?? "";
-            return <BlokKode kode={keTeks(children).replace(/\n$/, "")} bahasa={bahasa} />;
+            const kode = keTeks(children).replace(/\n$/, "");
+            // Blok sepanjang artefak dipendekkan di sini; versi utuhnya ada di
+            // panel artefak, yang dibuka lewat chip di bawah jawaban. Tanpa
+            // ini kode yang sama tampil dua kali, dan yang di aliran mendorong
+            // percakapannya sendiri keluar layar.
+            const panjang = kode.split("\n").length >= AMBANG_BARIS;
+            return <BlokKode kode={kode} bahasa={bahasa} ringkas={panjang} />;
           },
           code({ className, children }) {
             // Kode sebaris saja; yang di dalam blok sudah ditangani `pre`

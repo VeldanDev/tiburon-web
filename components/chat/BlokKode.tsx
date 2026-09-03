@@ -83,9 +83,27 @@ function highlighter(): Promise<Penyorot> {
   return janjiHighlighter;
 }
 
-export function BlokKode({ kode, bahasa }: { kode: string; bahasa: string }) {
+export function BlokKode({
+  kode,
+  bahasa,
+  ringkas,
+}: {
+  kode: string;
+  bahasa: string;
+  /**
+   * Batasi tinggi dan beri tombol buka.
+   *
+   * Dipakai di dalam aliran percakapan untuk blok panjang. Tanpa ini, satu
+   * berkas 200 baris mendorong pertanyaan dan jawaban di sekitarnya keluar
+   * layar -- dan isi yang sama sudah tersedia utuh di panel artefak.
+   */
+  ringkas?: boolean;
+}) {
   const [html, setHtml] = useState<string | null>(null);
   const [tersalin, setTersalin] = useState(false);
+  const [terbentang, setTerbentang] = useState(false);
+  const dipendekkan = Boolean(ringkas) && !terbentang;
+  const baris = kode.split("\n").length;
 
   const nama = ALIAS[bahasa.toLowerCase()] ?? bahasa.toLowerCase();
 
@@ -141,17 +159,38 @@ export function BlokKode({ kode, bahasa }: { kode: string; bahasa: string }) {
         </button>
       </div>
 
-      {html ? (
-        // Keluaran Shiki adalah HTML yang IA SENDIRI hasilkan dari teks kode,
-        // bukan HTML dari model: setiap karakter sudah di-escape olehnya saat
-        // membangun token. Jadi tidak ada jalan bagi isi jawaban untuk lolos
-        // jadi markup di sini.
-        <div className="blok-kode overflow-x-auto" dangerouslySetInnerHTML={{ __html: html }} />
-      ) : (
-        <pre className="blok-kode overflow-x-auto px-3 py-2.5 text-[13px] leading-[1.6]">
-          <code>{kode}</code>
-        </pre>
-      )}
+      <div
+        className="relative"
+        style={dipendekkan ? { maxHeight: 220, overflow: "hidden" } : undefined}
+      >
+        {html ? (
+          // Keluaran Shiki adalah HTML yang IA SENDIRI hasilkan dari teks kode,
+          // bukan HTML dari model: setiap karakter sudah di-escape olehnya saat
+          // membangun token. Jadi tidak ada jalan bagi isi jawaban untuk lolos
+          // jadi markup di sini.
+          <div className="blok-kode overflow-x-auto" dangerouslySetInnerHTML={{ __html: html }} />
+        ) : (
+          <pre className="blok-kode overflow-x-auto px-3 py-2.5 text-[13px] leading-[1.6]">
+            <code>{kode}</code>
+          </pre>
+        )}
+
+        {dipendekkan && (
+          <button
+            onClick={() => setTerbentang(true)}
+            className="absolute inset-x-0 bottom-0 flex h-16 items-end justify-center pb-1.5 text-[11px]"
+            style={{
+              // Gradien, bukan tepi tegas: tepi tegas terbaca sebagai akhir
+              // kode, dan pengguna tidak tahu masih ada sisanya.
+              background:
+                "linear-gradient(180deg, transparent, color-mix(in oklab, var(--abyss) 92%, transparent) 70%)",
+              color: "var(--teks-kedua)",
+            }}
+          >
+            Tampilkan semua ({baris} baris)
+          </button>
+        )}
+      </div>
     </div>
   );
 }

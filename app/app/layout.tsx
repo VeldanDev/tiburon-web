@@ -15,6 +15,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BarisPercakapan, type Percakapan } from "@/components/BarisPercakapan";
+import { DaftarProyek, type Proyek } from "@/components/DaftarProyek";
 import {
   IkonBaru,
   IkonDesain,
@@ -67,6 +68,7 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
   const [galat, setGalat] = useState("");
   const [kueri, setKueri] = useState("");
   const [hasil, setHasil] = useState<Percakapan[] | null>(null);
+  const [proyek, setProyek] = useState<Proyek[]>([]);
   const jalan = usePathname();
   const router = useRouter();
 
@@ -75,7 +77,25 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
       .then((r) => (r.ok ? r.json() : []))
       .then(setPercakapan)
       .catch(() => setPercakapan([]));
+    fetch("/api/proyek")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setProyek(Array.isArray(d) ? d : []))
+      .catch(() => setProyek([]));
   }, []);
+
+  async function buatProyek(nama: string) {
+    try {
+      const r = await fetch("/api/proyek", { method: "POST", body: JSON.stringify({ nama }) });
+      // Badan dibaca SEKALI: Response.json() hanya bisa dipanggil sekali per
+      // respons, jadi membacanya lagi di dalam setProyek akan melempar.
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.pesan ?? `HTTP ${r.status}`);
+      setProyek((lama) => [d, ...lama]);
+      setGalat("");
+    } catch (e) {
+      setGalat(`Buat proyek gagal: ${(e as Error).message}`);
+    }
+  }
 
   /**
    * Pencarian dijalankan di server, bukan disaring di klien.
@@ -258,6 +278,8 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
             );
           })}
         </nav>
+
+        <DaftarProyek proyek={proyek} onBuat={(n) => void buatProyek(n)} />
 
         {/* Daftar percakapan */}
         <div className="min-h-0 flex-1 overflow-y-auto px-3">
