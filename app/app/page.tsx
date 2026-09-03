@@ -30,8 +30,10 @@ import { HitunganKorpus } from "@/components/chat/HitunganKorpus";
 import { Markdown } from "@/components/chat/Markdown";
 import { AksiPesan } from "@/components/chat/AksiPesan";
 import { PesanPengguna } from "@/components/chat/PesanPengguna";
+import { AreaLepas, DaftarLampiran, TombolLampir } from "@/components/chat/Lampiran";
 import { TandaTiburon } from "@/components/TandaTiburon";
 import { judulDari } from "@/lib/judul";
+import { susunDenganLampiran, type Lampiran as Berkas } from "@/lib/lampiran";
 import {
   IkonBanding,
   IkonCepat,
@@ -125,9 +127,27 @@ function IsiObrolan() {
     berkas: number;
     potongan: number;
   } | null>(null);
+  const [lampiran, setLampiran] = useState<Berkas[]>([]);
+  const [galatLampiran, setGalatLampiran] = useState("");
   const bawah = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const paramCari = useSearchParams();
+
+  /**
+   * Tambah lampiran, tolak yang namanya sudah ada.
+   *
+   * Nama dipakai sebagai identitas karena itulah yang dilihat pengguna di
+   * chip-nya. Melampirkan dua berkas bernama sama menghasilkan dua chip yang
+   * tidak bisa dibedakan, dan tombol buang pada salah satunya akan membuang
+   * keduanya.
+   */
+  function tambahLampiran(baru: Berkas[]) {
+    setGalatLampiran("");
+    setLampiran((lama) => {
+      const ada = new Set(lama.map((l) => l.nama));
+      return [...lama, ...baru.filter((b) => !ada.has(b.nama))];
+    });
+  }
 
   // Menu perintah muncul saat kotak diawali "/" dan belum ada spasi.
   const menuTerbuka = teks.startsWith("/") && !teks.includes(" ");
@@ -337,9 +357,20 @@ function IsiObrolan() {
 
   async function kirim() {
     if (!teks.trim() || sibuk) return;
-    const dikirim = teks;
+
+    // Isi lampiran disatukan ke dalam pesan SEBELUM dikirim, dan pesan gabungan
+    // itulah yang disimpan ke riwayat. Kalau yang disimpan cuma pertanyaannya,
+    // memuat ulang percakapan akan menghasilkan jawaban yang merujuk berkas
+    // yang sudah tidak ada di mana pun.
+    const dikirim = susunDenganLampiran(teks, lampiran);
+    const pertanyaan = teks;
     setTeks("");
-    await jalankan(dikirim, [...pesan, { peran: "user", isi: dikirim }]);
+    setLampiran([]);
+    setGalatLampiran("");
+    // `pertanyaan` dipisah dari `dikirim` khusus untuk judul: kalau ada
+    // lampiran, `dikirim` DIAWALI isi berkas, dan judul otomatis akan
+    // mengambil baris pertama berkas itu alih-alih pertanyaannya.
+    await jalankan(dikirim, [...pesan, { peran: "user", isi: dikirim }], pertanyaan);
   }
 
   /**
@@ -378,7 +409,7 @@ function IsiObrolan() {
    * `riwayat` sudah harus berakhir pada pesan pengguna yang mau dijawab —
    * itulah satu-satunya perbedaan antara mengirim baru dan mengulang.
    */
-  async function jalankan(dikirim: string, riwayat: Balasan[]) {
+  async function jalankan(dikirim: string, riwayat: Balasan[], untukJudul = dikirim) {
     // Mode banding menaruh DUA balasan kosong sekaligus, satu per kolom.
     const barisBaru: Balasan[] = banding
       ? [
@@ -400,7 +431,7 @@ function IsiObrolan() {
       }, 700);
     }
 
-    const id = await pastikanPercakapan(dikirim);
+    const id = await pastikanPercakapan(untukJudul);
     simpan(id, "user", dikirim);
 
     const awal = riwayat.length;
@@ -508,8 +539,25 @@ function IsiObrolan() {
 
 
   const komposer = (
+    <AreaLepas onTambah={tambahLampiran} onGalat={setGalatLampiran}>
     <div className="w-full">
       {menuTerbuka && <MenuPerintah kueri={teks} onPilih={jalankanPerintah} />}
+
+      {galatLampiran && (
+        <div
+          role="alert"
+          className="naik mb-2 rounded-[var(--radius-kecil)] border px-2.5 py-1.5 text-[11px]"
+          style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
+        >
+          {galatLampiran}
+        </div>
+      )}
+
+      <DaftarLampiran
+        lampiran={lampiran}
+        onBuang={(nama) => setLampiran((d) => d.filter((l) => l.nama !== nama))}
+      />
+
       <div
         className="w-full rounded-[var(--radius-besar)] border p-2 transition"
         style={{
@@ -544,13 +592,7 @@ function IsiObrolan() {
       {/* Baris kontrol DI DALAM komposer -- gagasan dari Claude desktop:
           tambah, pemilih jalur, penanda mode, kirim. Semua dalam satu kotak. */}
       <div className="flex items-center gap-2 px-1 pt-1">
-        <button
-          className="flex h-7 w-7 items-center justify-center rounded-full text-[15px] transition hover:bg-white/10"
-          style={{ color: "var(--redup)" }}
-          title="Lampirkan materi ke korpus"
-        >
-          +
-        </button>
+        <TombolLampir onTambah={tambahLampiran} onGalat={setGalatLampiran} nonaktif={sibuk} />
         <PemilihJalur jalur={jalur} onGanti={setJalur} />
         <button
           onClick={() => setBanding((b) => !b)}
@@ -594,6 +636,7 @@ function IsiObrolan() {
         </div>
       </div>
     </div>
+    </AreaLepas>
   );
 
   const latar =
