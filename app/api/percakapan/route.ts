@@ -5,7 +5,30 @@ import {
   tambahPesan,
   ambilPercakapan,
   daftarPercakapan,
+  gantiJudul,
+  hapusPercakapan,
 } from "@/lib/riwayat";
+
+/**
+ * Baca badan permintaan sebagai objek JSON.
+ *
+ * `null` dan array sengaja ditolak di sini, bukan dibiarkan lewat: keduanya
+ * lolos dari `typeof x === "object"` dan pernah meruntuhkan rute lain di
+ * proyek ini lewat destrukturisasi, yang naik jadi 500 tanpa penjelasan
+ * apa-apa alih-alih 400 yang bisa dibaca.
+ */
+async function bacaObjek(req: Request): Promise<{ nilai?: Record<string, unknown>; galat?: Response }> {
+  let badan: unknown;
+  try {
+    badan = await req.json();
+  } catch {
+    return { galat: Response.json({ pesan: "Badan permintaan bukan JSON" }, { status: 400 }) };
+  }
+  if (typeof badan !== "object" || badan === null || Array.isArray(badan)) {
+    return { galat: Response.json({ pesan: "Badan permintaan harus objek JSON" }, { status: 400 }) };
+  }
+  return { nilai: badan as Record<string, unknown> };
+}
 
 /**
  * Riwayat percakapan.
@@ -31,15 +54,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  let badan: unknown;
-  try {
-    badan = await req.json();
-  } catch {
-    return Response.json({ pesan: "Badan permintaan bukan JSON" }, { status: 400 });
-  }
-  if (typeof badan !== "object" || badan === null || Array.isArray(badan)) {
-    return Response.json({ pesan: "Badan permintaan harus objek JSON" }, { status: 400 });
-  }
+  const { nilai: badan, galat } = await bacaObjek(req);
+  if (galat) return galat;
 
   const { judul } = badan as { judul?: unknown };
   if (typeof judul !== "string" || !judul.trim()) {
@@ -54,15 +70,8 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  let badan: unknown;
-  try {
-    badan = await req.json();
-  } catch {
-    return Response.json({ pesan: "Badan permintaan bukan JSON" }, { status: 400 });
-  }
-  if (typeof badan !== "object" || badan === null || Array.isArray(badan)) {
-    return Response.json({ pesan: "Badan permintaan harus objek JSON" }, { status: 400 });
-  }
+  const { nilai: badan, galat } = await bacaObjek(req);
+  if (galat) return galat;
 
   const { id, pesan } = badan as { id?: unknown; pesan?: unknown };
   const isiPesan = pesan as { role?: unknown; content?: unknown } | undefined;
@@ -79,5 +88,41 @@ export async function PUT(req: Request) {
     return Response.json({ ok: true });
   } catch (e) {
     return Response.json({ pesan: `Gagal menyimpan pesan: ${(e as Error).message}` }, { status: 500 });
+  }
+}
+
+/** Ganti judul satu percakapan. */
+export async function PATCH(req: Request) {
+  const { nilai: badan, galat } = await bacaObjek(req);
+  if (galat) return galat;
+
+  const { id, judul } = badan as { id?: unknown; judul?: unknown };
+  if (typeof id !== "string" || typeof judul !== "string" || !judul.trim()) {
+    return Response.json({ pesan: "Butuh id dan judul" }, { status: 400 });
+  }
+
+  try {
+    // 404 kalau id-nya tidak ada, BUKAN 200 diam-diam. Antarmuka yang mengira
+    // penggantian nama berhasil padahal tidak akan menampilkan judul baru yang
+    // hilang lagi begitu halaman dimuat ulang.
+    const ada = gantiJudul(id, judul.trim().slice(0, 120));
+    if (!ada) return Response.json({ pesan: "Percakapan tidak ditemukan" }, { status: 404 });
+    return Response.json({ ok: true });
+  } catch (e) {
+    return Response.json({ pesan: `Gagal mengganti judul: ${(e as Error).message}` }, { status: 500 });
+  }
+}
+
+/** Hapus satu percakapan beserta seluruh pesannya. */
+export async function DELETE(req: Request) {
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return Response.json({ pesan: "Butuh id" }, { status: 400 });
+
+  try {
+    const ada = hapusPercakapan(id);
+    if (!ada) return Response.json({ pesan: "Percakapan tidak ditemukan" }, { status: 404 });
+    return Response.json({ ok: true });
+  } catch (e) {
+    return Response.json({ pesan: `Gagal menghapus: ${(e as Error).message}` }, { status: 500 });
   }
 }

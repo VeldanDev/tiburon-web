@@ -387,6 +387,71 @@ body {
   }
 }
 
+/* ---- Baris percakapan di sidebar ----
+ *
+ * Tombol ganti nama dan hapus muncul saat baris disentuh ATAU saat salah satu
+ * isinya mendapat fokus papan ketik. Yang kedua bukan tambahan: tanpa
+ * :focus-within, kedua tombol itu tidak bisa dicapai dengan Tab sama sekali,
+ * karena ia tetap display:none saat difokuskan.
+ */
+.baris-obrolan {
+  transition: background-color var(--alih-cepat);
+}
+
+.aksi-obrolan {
+  display: none;
+}
+
+.baris-obrolan:hover .aksi-obrolan,
+.baris-obrolan:focus-within .aksi-obrolan {
+  display: inline-flex;
+}
+
+.baris-obrolan:hover .aksi-obrolan-sembunyi,
+.baris-obrolan:focus-within .aksi-obrolan-sembunyi {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .baris-obrolan:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* Di layar sentuh tidak ada hover sama sekali, jadi tombolnya harus selalu
+ * ada. Umur relatif yang dikorbankan, bukan aksinya -- aksi yang tak bisa
+ * dijangkau sama saja dengan aksi yang tidak ada. */
+@media (hover: none) {
+  .aksi-obrolan {
+    display: inline-flex;
+  }
+
+  .aksi-obrolan-sembunyi {
+    display: none;
+  }
+}
+
+/* ---- Blok kode ----
+ *
+ * Shiki mengeluarkan <pre class="shiki"> dengan latar dan warnanya sendiri.
+ * Latarnya dibatalkan di sini supaya blok memakai --lapis-0 seperti sisa
+ * aplikasi; yang dipertahankan cuma warna tokennya. */
+.blok-kode pre,
+.blok-kode.shiki,
+.blok-kode pre.shiki {
+  margin: 0;
+  padding: 10px 12px;
+  background: transparent !important;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.blok-kode code {
+  font-family: var(--font-mono);
+  background: none;
+  padding: 0;
+}
+
 /* Titik "sedang hidup" -- satu-satunya nada hangat di layar. */
 .titik-hidup {
   background: var(--hidup);

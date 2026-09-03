@@ -385,6 +385,39 @@ export function IkonSesudah(p: Props) {
   return <Bingkai {...p} anak={<path d="m9.5 6 6 6-6 6" />} />;
 }
 
+/** Sunting — pena yang menyentuh garis. */
+export function IkonSunting(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M15.5 4.5 19.5 8.5 9 19H5v-4L15.5 4.5Z" />
+          <path d="m13.5 6.5 4 4" />
+        </>
+      }
+    />
+  );
+}
+
+/** Hapus — tong dengan tutup. Satu-satunya ikon tanpa sudut tajam: menghapus
+ *  adalah hal yang seharusnya terasa tumpul, bukan mengundang. */
+export function IkonHapus(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M4.5 7h15" />
+          <path d="M9.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V7" />
+          <path d="M6.5 7v12a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V7" />
+          <path d="M10.5 11v6M13.5 11v6" />
+        </>
+      }
+    />
+  );
+}
+
 /** Kirim — mata panah tunggal condong ke kanan, ujung tajam. */
 export function IkonKirim(p: Props) {
   return (

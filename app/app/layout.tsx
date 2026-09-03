@@ -12,8 +12,9 @@
  */
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BarisPercakapan } from "@/components/BarisPercakapan";
 import {
   IkonBaru,
   IkonDesain,
@@ -61,7 +62,9 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
   const [percakapan, setPercakapan] = useState<
     { id: string; judul: string; diperbarui: number }[]
   >([]);
+  const [galat, setGalat] = useState("");
   const jalan = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     fetch("/api/percakapan")
@@ -69,6 +72,48 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
       .then(setPercakapan)
       .catch(() => setPercakapan([]));
   }, []);
+
+  /**
+   * Ganti nama dan hapus, keduanya OPTIMISTIS: daftar diperbarui lebih dulu,
+   * lalu server dihubungi.
+   *
+   * Alasannya bukan kecepatan — basis datanya lokal dan balasannya datang
+   * dalam hitungan milidetik. Alasannya adalah menunggu balasan untuk sesuatu
+   * yang PASTI berhasil membuat antarmuka terasa ragu-ragu.
+   *
+   * Karena itu, gagalnya harus benar-benar dipulihkan, bukan didiamkan:
+   * keadaan sebelumnya disimpan dan dikembalikan persis, lalu alasannya
+   * ditampilkan. Antarmuka optimistis yang tidak memulihkan diri saat gagal
+   * adalah antarmuka yang berbohong.
+   */
+  async function gantiNama(id: string, judul: string) {
+    const sebelum = percakapan;
+    setPercakapan((d) => d.map((p) => (p.id === id ? { ...p, judul } : p)));
+    try {
+      const r = await fetch("/api/percakapan", {
+        method: "PATCH",
+        body: JSON.stringify({ id, judul }),
+      });
+      if (!r.ok) throw new Error((await r.json()).pesan ?? `HTTP ${r.status}`);
+      setGalat("");
+    } catch (e) {
+      setPercakapan(sebelum);
+      setGalat(`Ganti nama gagal: ${(e as Error).message}`);
+    }
+  }
+
+  async function hapus(id: string) {
+    const sebelum = percakapan;
+    setPercakapan((d) => d.filter((p) => p.id !== id));
+    try {
+      const r = await fetch(`/api/percakapan?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!r.ok) throw new Error((await r.json()).pesan ?? `HTTP ${r.status}`);
+      setGalat("");
+    } catch (e) {
+      setPercakapan(sebelum);
+      setGalat(`Hapus gagal: ${(e as Error).message}`);
+    }
+  }
 
   return (
     <div className="flex h-screen" style={{ background: "var(--lapis-0)" }}>
@@ -173,34 +218,32 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
             </p>
           ) : (
             percakapan.map((p, i) => (
-              <button
+              // Titik hangat pada yang teratas, cincin dingin pada sisanya --
+              // menjawab "mana yang terakhir kusentuh" tanpa membaca satu kata.
+              <BarisPercakapan
                 key={p.id}
-                className="group flex w-full items-center gap-2 rounded-[var(--radius)] px-3 py-1.5 text-left text-[13px] transition hover:bg-white/5"
-                style={{ color: "var(--shell)" }}
-                title={new Date(p.diperbarui).toLocaleString("id-ID")}
-              >
-                {/* Yang paling baru diberi titik hangat, sisanya cincin dingin.
-                    Satu titik --hidup di kolom biru ini menjawab "mana yang
-                    terakhir kusentuh" tanpa perlu membaca satu kata pun. */}
-                <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${i === 0 ? "titik-hidup" : ""}`}
-                  style={
-                    i === 0
-                      ? undefined
-                      : { background: "transparent", border: "1px solid var(--redup)" }
-                  }
-                />
-                <span className="min-w-0 flex-1 truncate">{p.judul}</span>
-                <span
-                  className="angka shrink-0 text-[11px] tabular-nums"
-                  style={{ color: "var(--redup)" }}
-                >
-                  {umur(p.diperbarui)}
-                </span>
-              </button>
+                percakapan={p}
+                terbaru={i === 0}
+                umur={umur(p.diperbarui)}
+                onBuka={() => router.push(`/app?id=${p.id}`)}
+                onGantiNama={(judul) => void gantiNama(p.id, judul)}
+                onHapus={() => void hapus(p.id)}
+              />
             ))
           )}
         </div>
+
+        {/* Galat dari aksi optimistis. Ditaruh tepat di atas baris akun, di
+            dalam sidebar: yang gagal ada di sidebar, jadi kabarnya juga. */}
+        {galat && (
+          <div
+            role="alert"
+            className="naik mx-3 mb-2 rounded-[var(--radius-kecil)] border px-2.5 py-1.5 text-[11px]"
+            style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+          >
+            {galat}
+          </div>
+        )}
 
         {/* Baris akun */}
         <div

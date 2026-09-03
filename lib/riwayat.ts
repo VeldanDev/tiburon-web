@@ -90,6 +90,52 @@ export function ambilPercakapan(id: string, dbPath = dbRiwayat()): Pesan[] {
   }
 }
 
+/**
+ * Ganti judul percakapan.
+ *
+ * `diperbarui` SENGAJA tidak disentuh. Kolom itu artinya "kapan terakhir ada
+ * percakapan di sini", dan itulah yang mengurutkan sidebar. Kalau mengganti
+ * nama ikut memperbaruinya, merapikan judul obrolan lama akan melemparnya ke
+ * puncak daftar seolah baru saja dipakai.
+ */
+export function gantiJudul(id: string, judul: string, dbPath = dbRiwayat()): boolean {
+  const db = buka(dbPath);
+  try {
+    const hasil = db.prepare("UPDATE percakapan SET judul = ? WHERE id = ?").run(judul, id);
+    return hasil.changes > 0;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Hapus percakapan beserta seluruh pesannya.
+ *
+ * Pesan dihapus lebih dulu, dalam satu transaksi. Tanpa transaksi, gagal di
+ * tengah jalan meninggalkan pesan yatim yang tidak dimiliki percakapan mana
+ * pun — tak terlihat di antarmuka, tapi terus menumpuk di basis data.
+ *
+ * Tidak ada FOREIGN KEY di skema ini, jadi SQLite tidak akan merapikannya
+ * sendiri; harus dilakukan di sini.
+ */
+export function hapusPercakapan(id: string, dbPath = dbRiwayat()): boolean {
+  const db = buka(dbPath);
+  try {
+    db.exec("BEGIN");
+    try {
+      db.prepare("DELETE FROM pesan WHERE percakapan_id = ?").run(id);
+      const hasil = db.prepare("DELETE FROM percakapan WHERE id = ?").run(id);
+      db.exec("COMMIT");
+      return hasil.changes > 0;
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  } finally {
+    db.close();
+  }
+}
+
 export function daftarPercakapan(dbPath = dbRiwayat()): RingkasanPercakapan[] {
   const db = buka(dbPath);
   try {
