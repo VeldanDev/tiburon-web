@@ -13,7 +13,20 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Pesan } from "@/lib/penyedia";
 
-export type RingkasanPercakapan = { id: string; judul: string; diperbarui: number };
+export type RingkasanPercakapan = {
+  id: string;
+  judul: string;
+  diperbarui: number;
+  disemat: boolean;
+};
+
+export type HasilCari = {
+  id: string;
+  judul: string;
+  diperbarui: number;
+  /** Potongan pesan tempat kata kuncinya ditemukan, untuk ditampilkan. */
+  cuplikan: string;
+};
 
 export function dbRiwayat(): string {
   return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
@@ -28,7 +41,8 @@ function buka(dbPath: string): DatabaseSync {
         judul TEXT NOT NULL,
         pemilik TEXT NOT NULL DEFAULT '',
         dibuat INTEGER NOT NULL,
-        diperbarui INTEGER NOT NULL
+        diperbarui INTEGER NOT NULL,
+        disemat INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS pesan (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,6 +53,15 @@ function buka(dbPath: string): DatabaseSync {
       );
       CREATE INDEX IF NOT EXISTS idx_pesan_percakapan ON pesan(percakapan_id, id);
     `);
+
+    // Migrasi untuk basis data yang sudah ada sebelum kolom `disemat` lahir.
+    // CREATE TABLE IF NOT EXISTS di atas tidak menyentuh tabel yang sudah ada,
+    // jadi tanpa ini setiap kueri yang menyebut `disemat` akan gagal di
+    // basis data lama -- termasuk milik Veldan sendiri.
+    const kolom = db.prepare("PRAGMA table_info(percakapan)").all() as { name: string }[];
+    if (!kolom.some((k) => k.name === "disemat")) {
+      db.exec("ALTER TABLE percakapan ADD COLUMN disemat INTEGER NOT NULL DEFAULT 0");
+    }
   } catch (e) {
     // Handle sudah terbuka (new DatabaseSync berhasil) sebelum exec gagal.
     // Tanpa menutupnya di sini, handle itu bocor ke pemanggil dan tidak
@@ -145,10 +168,107 @@ export function daftarPercakapan(dbPath = dbRiwayat()): RingkasanPercakapan[] {
     // jadi kolom rowid bawaan tetap ada dan naik sesuai urutan penyisipan.
     // Tanpa ini, urutan SQLite untuk nilai `diperbarui` yang seri tidak
     // dijamin — lihat uji "terbaru di atas walau diperbarui sama persis".
-    return db.prepare("SELECT id, judul, diperbarui FROM percakapan ORDER BY diperbarui DESC, rowid DESC")
+    // Yang disemat selalu di atas, lalu urutan waktu seperti biasa.
+    return db
+      .prepare(
+        `SELECT id, judul, diperbarui, disemat FROM percakapan
+         ORDER BY disemat DESC, diperbarui DESC, rowid DESC`,
+      )
       .all()
-      .map((r) => r as RingkasanPercakapan);
+      .map((r) => {
+        const row = r as { id: string; judul: string; diperbarui: number; disemat: number };
+        // SQLite tidak punya boolean; tanpa konversi ini klien menerima 0/1
+        // dan `disemat ? ... : ...` di React akan salah untuk nilai 0 yang
+        // sebenarnya sudah benar — tapi menyamakan bentuknya di batas ini
+        // mencegah 0/1 bocor ke seluruh antarmuka.
+        return { ...row, disemat: row.disemat === 1 };
+      });
   } finally {
     db.close();
   }
+}
+
+/**
+ * Sematkan atau lepas sematan.
+ *
+ * Seperti gantiJudul, `diperbarui` TIDAK disentuh: menyematkan adalah
+ * penilaian tentang pentingnya sesuatu, bukan tanda bahwa ia baru dipakai.
+ */
+export function setSemat(id: string, disemat: boolean, dbPath = dbRiwayat()): boolean {
+  const db = buka(dbPath);
+  try {
+    const hasil = db
+      .prepare("UPDATE percakapan SET disemat = ? WHERE id = ?")
+      .run(disemat ? 1 : 0, id);
+    return hasil.changes > 0;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Cari di judul DAN isi pesan.
+ *
+ * Memakai LIKE, bukan FTS5. Alasannya bukan kemalasan: tabel riwayat ini
+ * berisi puluhan sampai ratusan percakapan milik satu orang, dan pemindaian
+ * penuh atas data sekecil itu selesai dalam hitungan milidetik. Membangun
+ * indeks FTS berarti menambah tabel bayangan yang harus dijaga tetap seiring
+ * di setiap penyisipan dan penghapusan — biaya perawatan yang nyata untuk
+ * keuntungan yang tidak akan pernah terasa pada ukuran ini.
+ *
+ * (Korpus itu cerita lain: 1.836 potongan dan memang memakai FTS5.)
+ */
+export function cariPercakapan(kueri: string, dbPath = dbRiwayat()): HasilCari[] {
+  const bersih = kueri.trim();
+  if (bersih.length < 2) return [];
+
+  const db = buka(dbPath);
+  try {
+    // Karakter wildcard LIKE di-escape supaya "100%" dicari sebagai teks
+    // "100%", bukan sebagai pola "100 diikuti apa saja".
+    const pola = `%${bersih.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    return db
+      .prepare(
+        `SELECT p.id, p.judul, p.diperbarui,
+                (SELECT m.isi FROM pesan m
+                  WHERE m.percakapan_id = p.id AND m.isi LIKE ? ESCAPE '\\'
+                  ORDER BY m.id LIMIT 1) AS cocok
+         FROM percakapan p
+         WHERE p.judul LIKE ? ESCAPE '\\'
+            OR EXISTS (SELECT 1 FROM pesan m2
+                        WHERE m2.percakapan_id = p.id AND m2.isi LIKE ? ESCAPE '\\')
+         ORDER BY p.disemat DESC, p.diperbarui DESC
+         LIMIT 50`,
+      )
+      .all(pola, pola, pola)
+      .map((r) => {
+        const row = r as { id: string; judul: string; diperbarui: number; cocok: string | null };
+        return {
+          id: row.id,
+          judul: row.judul,
+          diperbarui: row.diperbarui,
+          cuplikan: cuplik(row.cocok ?? "", bersih),
+        };
+      });
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Ambil potongan teks di sekitar kata yang cocok.
+ *
+ * Menampilkan 120 karakter pertama pesan tidak berguna kalau kata yang dicari
+ * ada di karakter ke-3000 — pengguna melihat cuplikan yang tidak memuat apa
+ * pun yang ia cari, dan hasilnya tampak salah.
+ */
+function cuplik(teks: string, kueri: string, lebar = 90): string {
+  if (!teks) return "";
+  const posisi = teks.toLowerCase().indexOf(kueri.toLowerCase());
+  if (posisi === -1) return teks.slice(0, lebar * 2).replace(/\s+/g, " ").trim();
+
+  const mulai = Math.max(0, posisi - lebar / 2);
+  const akhir = Math.min(teks.length, posisi + kueri.length + lebar);
+  const potong = teks.slice(mulai, akhir).replace(/\s+/g, " ").trim();
+  return `${mulai > 0 ? "…" : ""}${potong}${akhir < teks.length ? "…" : ""}`;
 }

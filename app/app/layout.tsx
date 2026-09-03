@@ -14,7 +14,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarisPercakapan } from "@/components/BarisPercakapan";
+import { BarisPercakapan, type Percakapan } from "@/components/BarisPercakapan";
 import {
   IkonBaru,
   IkonDesain,
@@ -23,7 +23,9 @@ import {
   IkonKorpus,
   IkonRadar,
   IkonSumber,
+  IkonCari,
   IkonTiburon,
+  IkonTutup,
   IkonUrut,
 } from "@/components/Ikon";
 import "@/styles/tokens.css";
@@ -59,10 +61,10 @@ const NAV = [
 
 export default function LayoutAplikasi({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("obrolan");
-  const [percakapan, setPercakapan] = useState<
-    { id: string; judul: string; diperbarui: number }[]
-  >([]);
+  const [percakapan, setPercakapan] = useState<Percakapan[]>([]);
   const [galat, setGalat] = useState("");
+  const [kueri, setKueri] = useState("");
+  const [hasil, setHasil] = useState<Percakapan[] | null>(null);
   const jalan = usePathname();
   const router = useRouter();
 
@@ -72,6 +74,33 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
       .then(setPercakapan)
       .catch(() => setPercakapan([]));
   }, []);
+
+  /**
+   * Pencarian dijalankan di server, bukan disaring di klien.
+   *
+   * Menyaring `percakapan` di memori hanya bisa mencocokkan JUDUL — isi
+   * pesannya tidak pernah ada di klien. Dan justru isi pesan itulah yang
+   * biasanya diingat orang saat mencari percakapan lama.
+   */
+  useEffect(() => {
+    const q = kueri.trim();
+    if (q.length < 2) {
+      setHasil(null);
+      return;
+    }
+    const jeda = window.setTimeout(() => {
+      fetch(`/api/percakapan?cari=${encodeURIComponent(q)}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then(setHasil)
+        .catch(() => setHasil([]));
+    }, 200);
+    return () => window.clearTimeout(jeda);
+  }, [kueri]);
+
+  // `hasil` null berarti tidak sedang mencari; array kosong berarti sedang
+  // mencari dan memang tidak ada yang cocok. Keduanya harus dibedakan, karena
+  // pesan yang ditampilkan untuk masing-masing berbeda.
+  const terlihat = hasil ?? percakapan;
 
   /**
    * Ganti nama dan hapus, keduanya OPTIMISTIS: daftar diperbarui lebih dulu,
@@ -99,6 +128,32 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
     } catch (e) {
       setPercakapan(sebelum);
       setGalat(`Ganti nama gagal: ${(e as Error).message}`);
+    }
+  }
+
+  async function semat(id: string, disemat: boolean) {
+    const sebelum = percakapan;
+    // Diurutkan ulang di klien dengan aturan yang SAMA seperti SQL-nya
+    // (disemat dulu, lalu waktu). Kalau tidak, barisnya berubah tanda tapi
+    // tetap di tempatnya sampai halaman dimuat ulang — dan seluruh gunanya
+    // menyematkan adalah memindahkannya ke atas.
+    setPercakapan((d) =>
+      [...d.map((p) => (p.id === id ? { ...p, disemat } : p))].sort(
+        (a, b) =>
+          Number(b.disemat ?? false) - Number(a.disemat ?? false) ||
+          b.diperbarui - a.diperbarui,
+      ),
+    );
+    try {
+      const r = await fetch("/api/percakapan", {
+        method: "PATCH",
+        body: JSON.stringify({ id, disemat }),
+      });
+      if (!r.ok) throw new Error((await r.json()).pesan ?? `HTTP ${r.status}`);
+      setGalat("");
+    } catch (e) {
+      setPercakapan(sebelum);
+      setGalat(`Sematkan gagal: ${(e as Error).message}`);
     }
   }
 
@@ -212,12 +267,48 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
             <IkonUrut ukuran={13} className="cursor-pointer transition hover:brightness-150" />
           </div>
 
-          {percakapan.length === 0 ? (
+          {/* Pencarian mencari di JUDUL DAN ISI PESAN. Mencari judul saja
+              hampir tidak pernah menolong: yang diingat orang biasanya
+              kalimat di dalam percakapan, bukan judul yang dibuat otomatis. */}
+          <div className="relative mb-1 px-1">
+            <span
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--redup)" }}
+            >
+              <IkonCari ukuran={13} />
+            </span>
+            <input
+              value={kueri}
+              onChange={(e) => setKueri(e.target.value)}
+              placeholder="Cari obrolan…"
+              aria-label="Cari obrolan"
+              className="w-full rounded-[var(--radius-kecil)] border py-1.5 pl-9 pr-7 text-[12px] outline-none"
+              style={{
+                borderColor: "var(--garis)",
+                background: "var(--lapis-0)",
+                color: "var(--teks-utama)",
+              }}
+            />
+            {kueri && (
+              <button
+                onClick={() => setKueri("")}
+                aria-label="Bersihkan pencarian"
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+                style={{ color: "var(--redup)" }}
+              >
+                <IkonTutup ukuran={11} />
+              </button>
+            )}
+          </div>
+
+          {terlihat.length === 0 ? (
             <p className="px-3 py-2 text-[12px]" style={{ color: "var(--redup)" }}>
-              Belum ada obrolan. Mulai dari kotak di sebelah.
+              {kueri.trim().length >= 2
+                ? `Tidak ada obrolan yang memuat “${kueri.trim()}”.`
+                : "Belum ada obrolan. Mulai dari kotak di sebelah."}
             </p>
           ) : (
-            percakapan.map((p, i) => (
+            terlihat.map((p, i) => (
               // Titik hangat pada yang teratas, cincin dingin pada sisanya --
               // menjawab "mana yang terakhir kusentuh" tanpa membaca satu kata.
               <BarisPercakapan
@@ -228,6 +319,7 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
                 onBuka={() => router.push(`/app?id=${p.id}`)}
                 onGantiNama={(judul) => void gantiNama(p.id, judul)}
                 onHapus={() => void hapus(p.id)}
+                onSemat={(disemat) => void semat(p.id, disemat)}
               />
             ))
           )}

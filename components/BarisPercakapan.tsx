@@ -20,9 +20,20 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { IkonSunting, IkonHapus, IkonCentang, IkonTutup } from "@/components/Ikon";
+import {
+  IkonSunting,
+  IkonHapus,
+  IkonCentang,
+  IkonTutup,
+  IkonSemat,
+} from "@/components/Ikon";
 
-export type Percakapan = { id: string; judul: string; diperbarui: number };
+export type Percakapan = {
+  id: string;
+  judul: string;
+  diperbarui: number;
+  disemat?: boolean;
+};
 
 export function BarisPercakapan({
   percakapan,
@@ -31,6 +42,7 @@ export function BarisPercakapan({
   onBuka,
   onGantiNama,
   onHapus,
+  onSemat,
 }: {
   percakapan: Percakapan;
   terbaru: boolean;
@@ -38,6 +50,7 @@ export function BarisPercakapan({
   onBuka: () => void;
   onGantiNama: (judul: string) => void;
   onHapus: () => void;
+  onSemat: (disemat: boolean) => void;
 }) {
   const [mode, setMode] = useState<"biasa" | "sunting" | "hapus">("biasa");
   const [draf, setDraf] = useState(percakapan.judul);
@@ -121,12 +134,19 @@ export function BarisPercakapan({
       className="baris-obrolan group flex w-full items-center gap-2 rounded-[var(--radius)] px-3 py-1.5 text-[13px]"
       style={{ color: "var(--shell)" }}
     >
-      <span
-        className={`h-1.5 w-1.5 shrink-0 rounded-full ${terbaru ? "titik-hidup" : ""}`}
-        style={
-          terbaru ? undefined : { background: "transparent", border: "1px solid var(--redup)" }
-        }
-      />
+      {/* Yang disemat memakai ikon jangkar sebagai penandanya, MENGGANTIKAN
+          titik. Menaruh keduanya membuat kolom sempit ini punya dua penanda
+          berbeda yang bersaing, dan sematan adalah yang lebih penting. */}
+      {percakapan.disemat ? (
+        <IkonSemat ukuran={11} className="shrink-0" />
+      ) : (
+        <span
+          className={`h-1.5 w-1.5 shrink-0 rounded-full ${terbaru ? "titik-hidup" : ""}`}
+          style={
+            terbaru ? undefined : { background: "transparent", border: "1px solid var(--redup)" }
+          }
+        />
+      )}
       <button
         onClick={onBuka}
         className="min-w-0 flex-1 truncate text-left"
@@ -146,6 +166,14 @@ export function BarisPercakapan({
       </span>
 
       <span className="aksi-obrolan shrink-0 items-center gap-0.5">
+        <button
+          onClick={() => onSemat(!percakapan.disemat)}
+          aria-label={percakapan.disemat ? `Lepas sematan ${percakapan.judul}` : `Sematkan ${percakapan.judul}`}
+          className="aksi-pesan rounded-[var(--radius-kecil)] p-1"
+          style={{ color: percakapan.disemat ? "var(--surface)" : "var(--redup)" }}
+        >
+          <IkonSemat ukuran={12} />
+        </button>
         <button
           onClick={() => {
             setDraf(percakapan.judul);
