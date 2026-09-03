@@ -524,3 +524,25 @@ export function IkonKirim(p: Props) {
     />
   );
 }
+
+/**
+ * Pengaturan — katup tekanan, bukan roda gigi.
+ *
+ * Roda gigi adalah ikon paling generik yang ada; ia muncul di setiap aplikasi
+ * yang pernah dibuat. Katup adalah alat yang benar-benar dipakai orang di
+ * kedalaman untuk mengatur sesuatu, dan bentuknya sama terbacanya.
+ */
+export function IkonAtur(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          <path d="m5.6 5.6 2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" />
+        </>
+      }
+    />
+  );
+}

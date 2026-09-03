@@ -3,9 +3,27 @@ export const runtime = "nodejs";
 
 import { cari, periksaSkema, type PotonganKorpus } from "@/lib/korpus";
 import { kirim, type Pesan } from "@/lib/penyedia";
+import { ambilPengaturan } from "@/lib/pengaturan";
 
 function baris(obj: unknown): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(obj)}\n\n`);
+}
+
+/**
+ * Baca instruksi khusus dan ingatan.
+ *
+ * Gagal membacanya TIDAK boleh menggagalkan percakapan: keduanya membuat
+ * jawaban lebih pas, tapi percakapan tanpa keduanya tetap percakapan yang sah.
+ * Basis data terkunci sesaat sebaiknya berujung pada jawaban yang sedikit
+ * lebih umum, bukan pada layar galat.
+ */
+function bacaTambahan(): { instruksi?: string; ingatan?: string[] } {
+  try {
+    const p = ambilPengaturan();
+    return { instruksi: p.instruksi, ingatan: p.ingatan.map((i) => i.isi) };
+  } catch {
+    return {};
+  }
 }
 
 export async function POST(req: Request) {
@@ -68,7 +86,11 @@ export async function POST(req: Request) {
       // dipancarkan sebagai { jenis: "gagal" }. Jadi aliran ini tidak bisa
       // putus di tengah seperti cari() di atas. Kalau kontrak itu berubah,
       // blok ini butuh try/catch juga.
-      for await (const k of kirim(pesan, { konteks })) {
+      // Instruksi khusus dan ingatan dibaca DI SINI, di server, bukan
+      // dikirim dari browser. Kalau klien yang mengirimnya, siapa pun yang
+      // bisa memanggil rute ini bisa menyuntik prompt sistem apa pun.
+      const { instruksi, ingatan } = bacaTambahan();
+      for await (const k of kirim(pesan, { konteks, instruksi, ingatan })) {
         kontrol.enqueue(baris(k));
       }
       kontrol.enqueue(baris({ jenis: "selesai" }));

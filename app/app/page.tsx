@@ -841,6 +841,7 @@ function IsiObrolan() {
           <BilahAtas
             judul={judul}
             jumlahPesan={pesan.length}
+            pesan={pesan}
             onCabang={() => void cabangkan()}
             onPintasan={() => setPintasanTerbuka(true)}
             onEksporMd={() =>
