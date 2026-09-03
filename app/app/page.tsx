@@ -46,6 +46,9 @@ type Balasan = {
   /** Pertanyaan yang memicu balasan ini -- dipakai kartu sumber untuk
    *  mengambil potongan yang sama dan menyorot kata yang cocok. */
   kueri?: string;
+  /** Diisi hanya saat mode banding: jalur mana yang menghasilkan balasan ini.
+   *  Dua balasan berurutan yang punya kolom akan dirender berdampingan. */
+  kolom?: Jalur;
 };
 
 function bacaKejadian(baris: string): KejadianAliran | null {
@@ -67,6 +70,7 @@ export default function HalamanObrolan() {
   const [galatRiwayat, setGalatRiwayat] = useState("");
   const [mencariKorpus, setMencariKorpus] = useState(false);
   const [kuotaHabis, setKuotaHabis] = useState("");
+  const [banding, setBanding] = useState(false);
   const bawah = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -161,43 +165,29 @@ export default function HalamanObrolan() {
     setTeks(cmd.isi ?? "");
   }
 
-  async function kirim() {
-    if (!teks.trim() || sibuk) return;
-    const riwayat = [...pesan, { peran: "user" as const, isi: teks }];
-    setPesan([...riwayat, { peran: "assistant", isi: "", kueri: teks }]);
-    const dikirim = teks;
-    setTeks("");
-    setSibuk(true);
-
-    // Sonar hanya berdenyut di jalur yang benar-benar mencari korpus.
-    //
-    // Pencarian korpusnya sendiri 0,5 ms -- jauh di bawah batas persepsi.
-    // Tanpa lantai waktu, cincinnya cuma berkedip sepersekian detik dan justru
-    // mengganggu. 700 ms cukup untuk satu putaran penuh terbaca sebagai
-    // gerakan yang disengaja, dan masih jauh di bawah waktu jawaban datang.
-    let bolehMatikanSonar = false;
-    if (jalur === "tiburon") {
-      setMencariKorpus(true);
-      window.setTimeout(() => {
-        bolehMatikanSonar = true;
-      }, 700);
-    } else {
-      bolehMatikanSonar = true;
-    }
-
-    const matikanSonar = () => {
-      if (bolehMatikanSonar) setMencariKorpus(false);
-      else window.setTimeout(() => setMencariKorpus(false), 700);
-    };
-
-    const id = await pastikanPercakapan(dikirim);
-    simpan(id, "user", dikirim);
+  /**
+   * Membaca satu aliran SSE dan menuliskannya ke pesan pada indeks tertentu.
+   *
+   * Dipisah dari kirim() supaya mode banding bisa menjalankan DUA aliran
+   * bersamaan, masing-masing menulis ke kolomnya sendiri tanpa saling
+   * menimpa. Indeks dipakai, bukan "pesan terakhir", justru karena saat
+   * banding ada dua pesan terakhir.
+   */
+  async function alirkan(jalurDipakai: Jalur, indeks: number, riwayat: Balasan[]) {
+    const tulis = (ubah: (b: Balasan) => void) =>
+      setPesan((lama) => {
+        const salin = [...lama];
+        if (!salin[indeks]) return lama;
+        salin[indeks] = { ...salin[indeks] };
+        ubah(salin[indeks]);
+        return salin;
+      });
 
     try {
       const resp = await fetch("/api/cepat", {
         method: "POST",
         body: JSON.stringify({
-          jalur,
+          jalur: jalurDipakai,
           pesan: riwayat.map((p) => ({ role: p.peran, content: p.isi })),
         }),
       });
@@ -219,14 +209,22 @@ export default function HalamanObrolan() {
           const k = bacaKejadian(b.slice(6));
           if (!k) continue;
           if (k.jenis === "sumber" || k.jenis === "peringatan") matikanSonar();
-          // Kegagalan seluruh rantai model diangkat jadi spanduk, bukan
-          // dibiarkan tenggelam sebagai teks di dalam gelembung jawaban.
+          if (k.jenis === "sumber" && k.berkas.length > 0) {
+            // Dicatat supaya halaman Riwayat sumber bisa menjawab
+            // berkas mana yang benar-benar terpakai. Gagal mencatat
+            // tidak boleh mengganggu jawaban yang sedang mengalir.
+            void fetch("/api/sumber", {
+              method: "POST",
+              body: JSON.stringify({
+                berkas: k.berkas,
+                kueri: riwayat[riwayat.length - 1]?.isi ?? "",
+              }),
+            }).catch(() => {});
+          }
           if (k.jenis === "gagal" && /semua model gagal/i.test(k.pesan)) {
             setKuotaHabis(k.pesan);
           }
-          setPesan((lama) => {
-            const salin = [...lama];
-            const akhir = salin[salin.length - 1];
+          tulis((akhir) => {
             if (k.jenis === "teks") akhir.isi += k.teks;
             if (k.jenis === "model") akhir.model = k.nama;
             if (k.jenis === "sumber") akhir.sumber = k.berkas;
@@ -234,24 +232,75 @@ export default function HalamanObrolan() {
             if (k.jenis === "gagal") {
               akhir.isi = akhir.isi ? `${akhir.isi}\n\n⚠ ${k.pesan}` : `⚠ ${k.pesan}`;
             }
-            return salin;
           });
         }
       }
-
-      setPesan((lama) => {
-        const akhir = lama[lama.length - 1];
-        if (akhir?.isi) simpan(id, "assistant", akhir.isi);
-        return lama;
-      });
     } catch (e) {
-      setPesan((lama) => {
-        const salin = [...lama];
-        const akhir = salin[salin.length - 1];
+      tulis((akhir) => {
         akhir.isi = akhir.isi
           ? `${akhir.isi}\n\n⚠ Terputus: ${(e as Error).message}`
           : `⚠ Gagal menghubungi server: ${(e as Error).message}`;
-        return salin;
+      });
+    }
+  }
+
+  let bolehMatikanSonar = true;
+  const matikanSonar = () => {
+    if (bolehMatikanSonar) setMencariKorpus(false);
+    else window.setTimeout(() => setMencariKorpus(false), 700);
+  };
+
+  async function kirim() {
+    if (!teks.trim() || sibuk) return;
+    const riwayat: Balasan[] = [...pesan, { peran: "user", isi: teks }];
+    const dikirim = teks;
+
+    // Mode banding menaruh DUA balasan kosong sekaligus, satu per kolom.
+    const barisBaru: Balasan[] = banding
+      ? [
+          { peran: "assistant", isi: "", kueri: dikirim, kolom: "cepat" },
+          { peran: "assistant", isi: "", kueri: dikirim, kolom: "tiburon" },
+        ]
+      : [{ peran: "assistant", isi: "", kueri: dikirim }];
+
+    setPesan([...riwayat, ...barisBaru]);
+    setTeks("");
+    setSibuk(true);
+
+    // Sonar hanya berdenyut kalau ada jalur yang benar-benar mencari korpus.
+    bolehMatikanSonar = true;
+    if (banding || jalur === "tiburon") {
+      setMencariKorpus(true);
+      bolehMatikanSonar = false;
+      window.setTimeout(() => {
+        bolehMatikanSonar = true;
+      }, 700);
+    }
+
+    const id = await pastikanPercakapan(dikirim);
+    simpan(id, "user", dikirim);
+
+    const awal = riwayat.length;
+    try {
+      if (banding) {
+        // Dua aliran berjalan BERSAMAAN, bukan berurutan. Perbandingannya
+        // kehilangan maknanya kalau satu sisi harus menunggu sisi lain.
+        await Promise.all([
+          alirkan("cepat", awal, riwayat),
+          alirkan("tiburon", awal + 1, riwayat),
+        ]);
+      } else {
+        await alirkan(jalur, awal, riwayat);
+      }
+
+      setPesan((lama) => {
+        const isi = lama
+          .slice(awal)
+          .map((b) => (b.kolom ? `[${b.kolom}] ${b.isi}` : b.isi))
+          .filter(Boolean)
+          .join("\n\n");
+        if (isi) simpan(id, "assistant", isi);
+        return lama;
       });
     } finally {
       setSibuk(false);
@@ -260,6 +309,75 @@ export default function HalamanObrolan() {
   }
 
   const kosong = pesan.length === 0;
+
+  /**
+   * Pesan datar dikelompokkan untuk render.
+   *
+   * Dua balasan asisten berurutan yang punya `kolom` berasal dari satu
+   * pertanyaan yang dibandingkan, jadi keduanya dirender berdampingan.
+   */
+  type Kelompok =
+    | { jenis: "pengguna"; isi: string }
+    | { jenis: "tunggal"; balasan: Balasan[] }
+    | { jenis: "banding"; balasan: Balasan[] };
+
+  const kelompok: Kelompok[] = [];
+  for (let i = 0; i < pesan.length; i++) {
+    const p = pesan[i];
+    if (p.peran === "user") {
+      kelompok.push({ jenis: "pengguna", isi: p.isi });
+      continue;
+    }
+    const berikut = pesan[i + 1];
+    if (p.kolom && berikut?.kolom && berikut.peran === "assistant") {
+      kelompok.push({ jenis: "banding", balasan: [p, berikut] });
+      i++;
+      continue;
+    }
+    kelompok.push({ jenis: "tunggal", balasan: [p] });
+  }
+
+  function isiBalasan(p: Balasan, kunci: number) {
+    return (
+      <div key={kunci} className="space-y-2">
+        {p.peringatan && (
+          <div className="text-[12px]" style={{ color: "var(--warn)" }}>
+            \u26a0 {p.peringatan}
+          </div>
+        )}
+        {(p.model || p.sumber?.length) && (
+          <div className="flex flex-col gap-2 text-[11px] sm:flex-row sm:flex-wrap sm:items-start">
+            {p.model && (
+              <span
+                className="rounded-[var(--radius-kecil)] px-2 py-0.5"
+                style={{ background: "var(--hover)", color: "var(--redup)" }}
+              >
+                \u21aa {p.model}
+              </span>
+            )}
+            {p.sumber?.map((b, j) => (
+              <span key={b} style={{ animationDelay: `${j * 40}ms` }}>
+                <KartuSumber berkas={b} kueri={p.kueri ?? ""} />
+              </span>
+            ))}
+          </div>
+        )}
+        <div
+          className="whitespace-pre-wrap text-[15px] leading-[1.75]"
+          style={{ color: "var(--shell)" }}
+        >
+          {p.isi}
+          {sibuk && !p.isi && (
+            <span
+              className="kursor ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px]"
+              style={{ background: "var(--surface)" }}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
 
   const komposer = (
     <div className="w-full">
@@ -306,6 +424,19 @@ export default function HalamanObrolan() {
           +
         </button>
         <PemilihJalur jalur={jalur} onGanti={setJalur} />
+        <button
+          onClick={() => setBanding((b) => !b)}
+          aria-pressed={banding}
+          title="Kirim ke kedua jalur sekaligus, jawabannya berdampingan"
+          className="rounded-[var(--radius-kecil)] px-2 py-1 text-[11px] transition"
+          style={
+            banding
+              ? { background: "var(--ocean)", color: "var(--shell)", boxShadow: "var(--pendar)" }
+              : { color: "var(--redup)" }
+          }
+        >
+          \u21c9 Banding
+        </button>
         <span className="ml-auto flex items-center gap-3">
           {/* Hitungan cocok hanya berarti di jalur yang membaca korpus. */}
           <HitunganKorpus kueri={teks} aktif={jalur === "tiburon"} />
@@ -433,55 +564,47 @@ export default function HalamanObrolan() {
             </div>
           ) : (
             <div className="space-y-7">
-              {pesan.map((p, i) =>
-                p.peran === "user" ? (
-                  <div key={i} className="flex justify-end">
+              {kelompok.map((g, gi) =>
+                g.jenis === "pengguna" ? (
+                  <div key={gi} className="flex justify-end">
                     <div
                       className="max-w-[85%] rounded-[var(--radius-besar)] px-4 py-2.5 text-[14px]"
                       style={{ background: "var(--ocean)", color: "var(--shell)" }}
                     >
-                      {p.isi}
+                      {g.isi}
                     </div>
                   </div>
+                ) : g.jenis === "banding" ? (
+                  /* Dua jawaban berdampingan. Bedanya bukan gaya bahasa --
+                     yang satu membaca korpusmu, yang satu tidak. Perbedaan
+                     ISI-nya yang jadi jawaban atas "apa gunanya korpus ini". */
+                  <div key={gi} className="grid gap-4 md:grid-cols-2">
+                    {g.balasan.map((p, i) => (
+                      <div
+                        key={i}
+                        className="rounded-[var(--radius)] border p-3"
+                        style={{
+                          borderColor:
+                            p.kolom === "tiburon" ? "var(--surface)" : "var(--garis)",
+                          boxShadow: p.kolom === "tiburon" ? "var(--pendar)" : undefined,
+                        }}
+                      >
+                        <div
+                          className="mb-2 flex items-baseline justify-between text-[11px]"
+                          style={{ color: "var(--redup)" }}
+                        >
+                          <span style={{ color: p.kolom === "tiburon" ? "var(--surface)" : undefined }}>
+                            {p.kolom === "tiburon" ? "\U0001F988 dengan korpus" : "\u26a1 tanpa korpus"}
+                          </span>
+                          <span className="angka">{p.kolom === "tiburon" ? "200 m" : "0 m"}</span>
+                        </div>
+                        {isiBalasan(p, gi * 10 + i)}
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <div key={i} className="space-y-2">
-                    {p.peringatan && (
-                      <div className="text-[12px]" style={{ color: "var(--warn)" }}>
-                        ⚠ {p.peringatan}
-                      </div>
-                    )}
-                    {(p.model || p.sumber?.length) && (
-                      <div className="flex flex-col gap-2 text-[11px] sm:flex-row sm:flex-wrap sm:items-start">
-                        {p.model && (
-                          <span
-                            className="rounded-[var(--radius-kecil)] px-2 py-0.5"
-                            style={{ background: "var(--hover)", color: "var(--redup)" }}
-                          >
-                            ↪ {p.model}
-                          </span>
-                        )}
-                        {p.sumber?.map((b, j) => (
-                          /* Naik dari kedalaman, bertahap 40ms. Bisa diklik:
-                             potongan korpus aslinya terbuka, kata yang cocok
-                             disorot -- klaim jadi bisa diperiksa. */
-                          <span key={b} style={{ animationDelay: `${j * 40}ms` }}>
-                            <KartuSumber berkas={b} kueri={p.kueri ?? ""} />
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div
-                      className="whitespace-pre-wrap text-[15px] leading-[1.75]"
-                      style={{ color: "var(--shell)" }}
-                    >
-                      {p.isi}
-                      {sibuk && i === pesan.length - 1 && (
-                        <span
-                          className="kursor ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px]"
-                          style={{ background: "var(--surface)" }}
-                        />
-                      )}
-                    </div>
+                  <div key={gi} className="space-y-2">
+                    {isiBalasan(g.balasan[0], gi)}
                   </div>
                 ),
               )}

@@ -18,16 +18,38 @@ import "@/styles/tokens.css";
 
 type Mode = "obrolan" | "kode";
 
+/**
+ * Umur ringkas untuk daftar percakapan: 4m, 3j, 6h, 2b.
+ *
+ * Sengaja sesingkat mungkin -- ini kolom sempit di sisi kanan judul, dan
+ * angkanya cuma perlu menjawab "baru atau lama", bukan waktu persis.
+ *
+ * Dihitung di klien saja. Daftar percakapan dimuat lewat useEffect, jadi
+ * server tidak pernah merendernya -- tidak ada risiko waktu server dan klien
+ * berbeda lalu memicu galat hidrasi.
+ */
+function umur(ms: number): string {
+  const detik = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (detik < 60) return "kini";
+  if (detik < 3600) return `${Math.floor(detik / 60)}m`;
+  if (detik < 86400) return `${Math.floor(detik / 3600)}j`;
+  if (detik < 2592000) return `${Math.floor(detik / 86400)}h`;
+  return `${Math.floor(detik / 2592000)}b`;
+}
+
 const NAV = [
   { ikon: "🗂", label: "Korpus", href: "/app/korpus" },
   { ikon: "📡", label: "Radar", href: "/app/radar" },
+  { ikon: "◆", label: "Riwayat sumber", href: "/app/sumber" },
   { ikon: "◷", label: "Tugas terjadwal", href: "/app/jadwal" },
   { ikon: "🎨", label: "Papan desain", href: "/app/desain" },
 ];
 
 export default function LayoutAplikasi({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("obrolan");
-  const [percakapan, setPercakapan] = useState<{ id: string; judul: string }[]>([]);
+  const [percakapan, setPercakapan] = useState<
+    { id: string; judul: string; diperbarui: number }[]
+  >([]);
   const jalan = usePathname();
 
   useEffect(() => {
@@ -110,8 +132,9 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
             percakapan.map((p, i) => (
               <button
                 key={p.id}
-                className="flex w-full items-center gap-2 rounded-[var(--radius)] px-3 py-1.5 text-left text-[13px] transition hover:bg-white/5"
+                className="group flex w-full items-center gap-2 rounded-[var(--radius)] px-3 py-1.5 text-left text-[13px] transition hover:bg-white/5"
                 style={{ color: "var(--shell)" }}
+                title={new Date(p.diperbarui).toLocaleString("id-ID")}
               >
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -120,7 +143,13 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
                     border: i === 0 ? "none" : "1px solid var(--redup)",
                   }}
                 />
-                <span className="truncate">{p.judul}</span>
+                <span className="min-w-0 flex-1 truncate">{p.judul}</span>
+                <span
+                  className="angka shrink-0 text-[11px] tabular-nums"
+                  style={{ color: "var(--redup)" }}
+                >
+                  {umur(p.diperbarui)}
+                </span>
               </button>
             ))
           )}
