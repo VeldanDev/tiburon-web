@@ -222,7 +222,37 @@ body {
 
 .ikon-kail {
   transform-origin: 12px 4px;
-  transition: transform var(--alih) ;
+  transition: transform var(--alih);
+}
+
+/* Panah lipat: SATU bentuk yang berputar, bukan dua bentuk yang bertukar.
+ * Bentuk yang bertukar terbaca sebagai kedipan; yang berputar terbaca sebagai
+ * sesuatu yang benar-benar terbuka. */
+.ikon-lipat {
+  transition: transform var(--alih);
+}
+
+.ikon-lipat-buka {
+  transform: rotate(90deg);
+}
+
+/* Sapuan sonar pada tanda Tiburon.
+ *
+ * Cuma dipakai di layar kosong -- satu tempat, dilihat sekali di awal sesi.
+ * Kalau ia berdenyut di setiap sudut aplikasi, ia berhenti jadi sambutan dan
+ * mulai jadi gangguan. */
+@keyframes gema-tanda {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.tanda-sonar {
+  animation: gema-tanda 3.2s var(--masuk-keluar) infinite;
 }
 
 /* ---- Markdown ----
@@ -520,5 +550,12 @@ body {
 
   .tombol-baru:hover .ikon-kail {
     transform: none;
+  }
+
+  /* Panah lipat TETAP berputar: arahnya membawa informasi (terbuka vs
+   * tertutup), bukan sekadar hiasan. Yang dihilangkan cuma transisinya, dan
+   * itu sudah ditangani aturan durasi di atas. */
+  .tanda-sonar {
+    animation: none;
   }
 }

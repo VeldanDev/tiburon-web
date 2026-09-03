@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from "react";
 import type { TugasTerjadwal } from "@/lib/jadwal";
+import { IkonPeringatan } from "@/components/Ikon";
 
 function jam(ms: number | null): string {
   if (!ms) return "—";
@@ -85,7 +86,8 @@ export default function HalamanJadwal() {
             className="mb-6 rounded-[var(--radius)] border px-4 py-3 text-[13px]"
             style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
           >
-            ⚠ {pesan}
+            <IkonPeringatan ukuran={13} className="mr-1 inline-block align-[-2px]" />
+          {pesan}
           </div>
         )}
 

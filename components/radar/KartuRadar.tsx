@@ -1,4 +1,5 @@
 import type { ItemRadar } from "@/lib/radar-parser";
+import { IkonTautanLuar } from "@/components/Ikon";
 
 export function KartuRadar({ item }: { item: ItemRadar }) {
   return (
@@ -11,7 +12,8 @@ export function KartuRadar({ item }: { item: ItemRadar }) {
       <p className="mt-1 text-sm opacity-80">{item.ringkasan}</p>
       <a href={item.url} target="_blank" rel="noreferrer"
          className="mt-2 inline-block text-xs underline opacity-70 hover:opacity-100">
-        {item.sumber || item.url} ↗
+        {item.sumber || item.url}
+      <IkonTautanLuar ukuran={11} className="ml-1 inline-block align-[-1px]" />
       </a>
       {item.relevan && (
         <p className="mt-3 border-l-2 pl-3 text-sm" style={{ borderColor: "var(--surface)" }}>

@@ -23,6 +23,7 @@ import {
   IkonRadar,
   IkonSumber,
   IkonTiburon,
+  IkonUrut,
 } from "@/components/Ikon";
 import "@/styles/tokens.css";
 
@@ -163,7 +164,7 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
             style={{ color: "var(--redup)" }}
           >
             <span>Obrolan</span>
-            <span className="cursor-pointer hover:brightness-150">⇅</span>
+            <IkonUrut ukuran={13} className="cursor-pointer transition hover:brightness-150" />
           </div>
 
           {percakapan.length === 0 ? (

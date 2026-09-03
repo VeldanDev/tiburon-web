@@ -1,5 +1,7 @@
 "use client";
 
+import { IkonCepat, IkonKode, IkonTiburon } from "@/components/Ikon";
+
 export type Jalur = "cepat" | "tiburon" | "kode";
 
 /** Kedalaman = jalur. Latar berubah supaya jalur aktif terasa, bukan dibaca. */
@@ -10,9 +12,15 @@ export const LATAR_JALUR: Record<Jalur, string> = {
 };
 
 const LABEL: Record<Jalur, string> = {
-  cepat: "⚡ Cepat",
-  tiburon: "🦈 Tiburon",
-  kode: "⌘ Kode",
+  cepat: "Cepat",
+  tiburon: "Tiburon",
+  kode: "Kode",
+};
+
+const IKON: Record<Jalur, (p: { ukuran?: number; className?: string }) => React.ReactElement> = {
+  cepat: IkonCepat,
+  tiburon: IkonTiburon,
+  kode: IkonKode,
 };
 
 export function PemilihJalur({
@@ -30,7 +38,10 @@ export function PemilihJalur({
             j === jalur ? "bg-white/15 font-medium" : "opacity-60 hover:opacity-100"
           }`}
         >
-          {LABEL[j]}
+          <span className="flex items-center gap-1.5">
+            {IKON[j]({ ukuran: 14, className: j === jalur ? "ikon-aktif" : undefined })}
+            {LABEL[j]}
+          </span>
           {j === jalur && (
             /* Gigi hiu: satu elemen tajam di antara sudut-sudut membulat. */
             <span

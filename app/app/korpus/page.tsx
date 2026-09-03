@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { IkonKorpus } from "@/components/Ikon";
+import { IkonKorpus, IkonTutup } from "@/components/Ikon";
 
 type Potongan = { berkas: string; jalur: string; teks: string; skor: number };
 type Berkas = { nama: string; jalur: string; potongan: number };
@@ -123,7 +123,7 @@ export default function HalamanKorpus() {
                     className="underline"
                     style={{ color: "var(--surface)" }}
                   >
-                    {saring} ✕
+                    <span className="inline-flex items-center gap-1">{saring}<IkonTutup ukuran={10} /></span>
                   </button>
                 </>
               )}

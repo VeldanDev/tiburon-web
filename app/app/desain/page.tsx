@@ -134,7 +134,7 @@ export default function HalamanDesain() {
                 model="Tiburon — korpus pribadi + rantai model cadangan"
                 org="Shift Company"
                 cwd="~/Tiburon"
-                tips={["Pilih jalur 🦈 Tiburon untuk menjawab dari korpusmu sendiri"]}
+                tips={["Pilih jalur Tiburon untuk menjawab dari korpusmu sendiri"]}
                 whatsNew={[
                   "Pembacaan korpus langsung dari indeks — 0,5 ms, bukan 40 detik",
                   "Halaman Radar: 40 item pagi dengan penyaring kategori",
@@ -302,7 +302,7 @@ export default function HalamanDesain() {
             <GrokHeader
               version="0.1.0"
               headline="Tiburon sudah bisa membaca korpusmu"
-              subhead="Pilih jalur 🦈 Tiburon di komposer untuk mencobanya."
+              subhead="Pilih jalur Tiburon di komposer untuk mencobanya."
             />
             <GrokMessage role="user" time="19:42">
               apa isi radar pagi ini?
