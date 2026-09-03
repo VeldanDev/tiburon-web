@@ -80,6 +80,22 @@ function kueriAman(kueri: string): string {
   return kata.map((k) => `"${k}"`).join(" OR ");
 }
 
+/**
+ * Diukur langsung dari node:sqlite (2026-09-03): meski kueriAman() membungkus
+ * tiap kata dalam kutip ganda dan membuang " * ( ), FTS5 masih bisa melempar
+ * galat sintaks murni — byte nol (\0) di tengah kata lolos dari penyaringan
+ * dan membuat FTS5 melempar "unterminated string" persis seperti kutip yang
+ * benar-benar tak tertutup. Galat sintaks parser FTS5 "sungguhan" (dipicu
+ * lewat kueri mentah, di luar kueriAman) berbunyi `fts5: syntax error near
+ * "..."`. Keduanya punya errcode SQLite yang SAMA (1, "SQL logic error")
+ * dengan galat skema seperti tabel hilang — jadi satu-satunya pembeda yang
+ * bisa diandalkan adalah teks pesannya, bukan kodenya.
+ */
+function galatSintaksFts(e: unknown): boolean {
+  const pesan = e instanceof Error ? e.message : "";
+  return pesan === "unterminated string" || pesan.startsWith("fts5: syntax error");
+}
+
 export function cari(kueri: string, batas = 8, dbPath = dbBawaan()): PotonganKorpus[] {
   const db = buka(dbPath);
   try {
@@ -94,9 +110,15 @@ export function cari(kueri: string, batas = 8, dbPath = dbBawaan()): PotonganKor
       const row = r as { path: string; teks: string; skor: number };
       return { path: row.path, teks: row.teks, skor: row.skor };
     });
-  } catch {
-    // Kueri yang tidak bisa diurai FTS bukan alasan menjatuhkan seluruh jawaban.
-    return [];
+  } catch (e) {
+    // HANYA galat sintaks FTS murni (lihat galatSintaksFts di atas) yang jadi [].
+    // Tabel hilang ("no such table: ..." — skema OpenClaw berubah), berkas korup
+    // ("file is not a database"), dan galat I/O lain WAJIB naik ke pemanggil:
+    // itu bukan "tidak ada hasil", itu kegagalan yang harus terlihat.
+    if (galatSintaksFts(e)) {
+      return [];
+    }
+    throw e;
   } finally {
     db.close();
   }

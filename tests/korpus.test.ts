@@ -55,6 +55,25 @@ describe("cari", () => {
   it("tidak melempar pada kueri berisi karakter khusus FTS", () => {
     expect(() => cari('kunci "publik" AND (enkripsi', 3, DB_ASLI)).not.toThrow();
   });
+
+  it("mengembalikan array kosong (bukan melempar) untuk kueri yang memicu galat sintaks FTS murni", () => {
+    // kueriAman() membuang " * ( ) tapi tidak byte nol. Byte nol di tengah kata
+    // lolos, dibungkus kutip ganda, lalu membuat FTS5 melempar "unterminated
+    // string" — ini satu-satunya galat sintaks yang benar-benar bisa dipicu
+    // lewat cari() (diverifikasi langsung terhadap node:sqlite). Perilaku yang
+    // diuji di sini: galat itu tetap jadi [], bukan naik ke pemanggil.
+    expect(cari("foo\u0000bar", 3, DB_ASLI)).toEqual([]);
+  });
+
+  it("melempar (bukan diam-diam mengembalikan []) ketika tabel FTS hilang dari skema", () => {
+    const palsu = path.join(os.tmpdir(), `korpus-cari-tabel-hilang-${Date.now()}.sqlite`);
+    const db = new DatabaseSync(palsu);
+    db.exec("CREATE TABLE lain (a TEXT)");
+    db.close();
+
+    expect(() => cari("apa saja", 5, palsu)).toThrow(/no such table/);
+    fs.unlinkSync(palsu);
+  });
 });
 
 describe("daftarBerkas", () => {
