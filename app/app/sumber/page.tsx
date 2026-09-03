@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { IkonPeringatan } from "@/components/Ikon";
 
 type Terpakai = { berkas: string; jumlah: number; terakhirMs: number; contohKueri: string };
 type Belum = { berkas: string; potongan: number };
@@ -80,7 +81,8 @@ export default function HalamanSumber() {
             className="mb-6 rounded-[var(--radius)] border px-4 py-3 text-[13px]"
             style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
           >
-            ⚠ {pesan}
+            <IkonPeringatan ukuran={13} className="mr-1 inline-block align-[-2px]" />
+            {pesan}
           </div>
         )}
 
@@ -92,7 +94,7 @@ export default function HalamanSumber() {
 
         {!memuat && terpakai.length === 0 && !pesan && (
           <p className="text-[13px]" style={{ color: "var(--redup)" }}>
-            Belum ada sumber yang tercatat. Tanyakan sesuatu di jalur 🦈 Tiburon,
+            Belum ada sumber yang tercatat. Tanyakan sesuatu di jalur Tiburon,
             dan berkas yang menjawabnya akan muncul di sini.
           </p>
         )}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { KartuRadar } from "@/components/radar/KartuRadar";
 import type { LaporanRadar } from "@/lib/radar-parser";
+import { IkonPeringatan, IkonSebelum, IkonSesudah } from "@/components/Ikon";
 
 function iso(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -60,9 +61,9 @@ export default function HalamanRadar() {
   return (
     <div className="mx-auto max-w-3xl p-6">
       <div className="mb-4 flex items-center gap-3">
-        <button onClick={() => geser(-1)} className="rounded px-2 py-1 hover:bg-white/10">◀</button>
+        <button onClick={() => geser(-1)} className="rounded px-2 py-1 hover:bg-white/10"><IkonSebelum ukuran={15} /></button>
         <h1 className="text-lg font-semibold tabular-nums">Radar Pagi · {tanggal}</h1>
-        <button onClick={() => geser(1)} className="rounded px-2 py-1 hover:bg-white/10">▶</button>
+        <button onClick={() => geser(1)} className="rounded px-2 py-1 hover:bg-white/10"><IkonSesudah ukuran={15} /></button>
       </div>
 
       {laporan && (
@@ -80,7 +81,8 @@ export default function HalamanRadar() {
           className="mb-4 rounded-[var(--radius)] border px-4 py-3 text-sm"
           style={{ borderColor: "var(--surface)" }}
         >
-          ⚠️ {catatan}
+          <IkonPeringatan ukuran={13} className="mr-1 inline-block align-[-2px]" />
+          {catatan}
         </div>
       )}
 

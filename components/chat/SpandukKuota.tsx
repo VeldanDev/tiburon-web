@@ -1,5 +1,7 @@
 "use client";
 
+import { IkonJadwal } from "@/components/Ikon";
+
 /**
  * Spanduk kuota.
  *
@@ -58,7 +60,7 @@ export function SpandukKuota({
       style={{ borderColor: "var(--warn)", background: "var(--hover)" }}
     >
       <div className="mb-1 flex items-center gap-2 text-[14px]" style={{ color: "var(--warn)" }}>
-        <span aria-hidden>◷</span>
+        <IkonJadwal ukuran={14} />
         Kuota model habis
       </div>
 

@@ -29,11 +29,13 @@ import { KartuSumber } from "@/components/chat/KartuSumber";
 import { HitunganKorpus } from "@/components/chat/HitunganKorpus";
 import { Markdown } from "@/components/chat/Markdown";
 import { AksiPesan } from "@/components/chat/AksiPesan";
+import { TandaTiburon } from "@/components/TandaTiburon";
 import {
   IkonBanding,
   IkonCepat,
   IkonModel,
   IkonPeringatan,
+  IkonRadar,
   IkonTiburon,
 } from "@/components/Ikon";
 import { useRouter } from "next/navigation";
@@ -80,6 +82,10 @@ export default function HalamanObrolan() {
   const [mencariKorpus, setMencariKorpus] = useState(false);
   const [kuotaHabis, setKuotaHabis] = useState("");
   const [banding, setBanding] = useState(false);
+  const [ringkasKorpus, setRingkasKorpus] = useState<{
+    berkas: number;
+    potongan: number;
+  } | null>(null);
   const bawah = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -109,6 +115,23 @@ export default function HalamanObrolan() {
     }
     window.addEventListener("keydown", tekan);
     return () => window.removeEventListener("keydown", tekan);
+  }, []);
+
+  // Ringkasan korpus untuk kartu "Korpus aktif" di layar kosong. Gagalnya
+  // dibiarkan diam: kartu itu keterangan tambahan, dan memunculkan spanduk
+  // galat untuknya akan menutupi layar pembuka hanya karena hiasan gagal.
+  useEffect(() => {
+    let dibatalkan = false;
+    fetch("/api/korpus/berkas")
+      .then((r) => r.json())
+      .then((d) => {
+        if (dibatalkan || !Array.isArray(d.berkas)) return;
+        setRingkasKorpus({ berkas: d.berkas.length, potongan: d.totalPotongan ?? 0 });
+      })
+      .catch(() => {});
+    return () => {
+      dibatalkan = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -239,7 +262,12 @@ export default function HalamanObrolan() {
             if (k.jenis === "sumber") akhir.sumber = k.berkas;
             if (k.jenis === "peringatan") akhir.peringatan = k.pesan;
             if (k.jenis === "gagal") {
-              akhir.isi = akhir.isi ? `${akhir.isi}\n\n⚠ ${k.pesan}` : `⚠ ${k.pesan}`;
+              // Ditulis sebagai teks tebal markdown, bukan karakter simbol:
+              // isi pesan sekarang dirender lewat <Markdown>, dan simbol
+              // Unicode bentuknya berubah-ubah tergantung sistem operasi.
+              akhir.isi = akhir.isi
+                ? `${akhir.isi}\n\n**Gagal:** ${k.pesan}`
+                : `**Gagal:** ${k.pesan}`;
             }
           });
         }
@@ -247,8 +275,8 @@ export default function HalamanObrolan() {
     } catch (e) {
       tulis((akhir) => {
         akhir.isi = akhir.isi
-          ? `${akhir.isi}\n\n⚠ Terputus: ${(e as Error).message}`
-          : `⚠ Gagal menghubungi server: ${(e as Error).message}`;
+          ? `${akhir.isi}\n\n**Terputus:** ${(e as Error).message}`
+          : `**Gagal menghubungi server:** ${(e as Error).message}`;
       });
     }
   }
@@ -535,7 +563,8 @@ export default function HalamanObrolan() {
               className="mb-6 rounded-[var(--radius)] border px-4 py-3 text-[13px]"
               style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
             >
-              ⚠ {galatRiwayat}
+              <IkonPeringatan ukuran={13} className="mr-1 inline-block align-[-2px]" />
+              {galatRiwayat}
             </div>
           )}
 
@@ -550,7 +579,7 @@ export default function HalamanObrolan() {
                   fontFamily: "var(--font-serif)",
                 }}
               >
-                <span style={{ filter: "drop-shadow(var(--pendar-kuat))" }}>🦈</span>
+                <TandaTiburon ukuran={44} berdenyut />
                 Tiburon siap
               </h1>
 
@@ -581,13 +610,22 @@ export default function HalamanObrolan() {
                   style={{ color: "var(--redup)" }}
                 >
                   <span>Korpus aktif</span>
-                  <span className="angka">164 berkas terindeks</span>
+                  {/* Dibaca sungguhan, bukan ditulis mati. Sebelumnya di sini
+                      tertulis "164 berkas terindeks" sebagai angka tetap,
+                      padahal korpusnya berisi jumlah yang sama sekali lain --
+                      dan angka palsu di layar yang seluruh gunanya adalah
+                      membuktikan isi korpus justru merusak maksudnya. */}
+                  <span className="angka">
+                    {ringkasKorpus === null
+                      ? "membaca korpus…"
+                      : `${ringkasKorpus.berkas} berkas · ${ringkasKorpus.potongan.toLocaleString("id-ID")} potongan`}
+                  </span>
                 </div>
                 <div
                   className="flex items-center gap-3 rounded-[var(--radius)] border px-4 py-3"
                   style={{ borderColor: "var(--garis)" }}
                 >
-                  <span className="text-[18px]">📡</span>
+                  <IkonRadar ukuran={18} className="ikon-aktif shrink-0" />
                   <div className="min-w-0">
                     <div className="text-[14px]" style={{ color: "var(--shell)" }}>
                       Radar Pagi — 3 September

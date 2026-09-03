@@ -20,6 +20,7 @@
  */
 
 import { useState } from "react";
+import { IkonBerkas, IkonLipat, IkonPeringatan } from "@/components/Ikon";
 
 type Potongan = { berkas: string; jalur: string; teks: string; skor: number };
 
@@ -86,9 +87,17 @@ export function KartuSumber({ berkas, kueri }: { berkas: string; kueri: string }
           boxShadow: buka ? "var(--pendar-kuat)" : "var(--pendar)",
         }}
       >
-        📄 {berkas}
-        <span aria-hidden style={{ opacity: 0.6 }}>
-          {buka ? " ▾" : " ▸"}
+        <span className="flex items-center gap-1.5">
+          <IkonBerkas ukuran={12} />
+          {berkas}
+          {/* Satu panah yang BERPUTAR 90°, bukan dua bentuk yang bertukar.
+              Bentuk yang bertukar terbaca sebagai kedipan; bentuk yang
+              berputar terbaca sebagai sesuatu yang terbuka. */}
+          <IkonLipat
+            ukuran={11}
+            buka={buka}
+            className={buka ? "ikon-lipat-buka" : undefined}
+          />
         </span>
       </button>
 
@@ -110,7 +119,8 @@ export function KartuSumber({ berkas, kueri }: { berkas: string; kueri: string }
 
             {pesan && (
               <p role="alert" style={{ color: "var(--warn)" }}>
-                ⚠ {pesan}
+                <IkonPeringatan ukuran={12} className="mr-1 inline-block align-[-2px]" />
+                {pesan}
               </p>
             )}
 

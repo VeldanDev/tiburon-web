@@ -297,6 +297,94 @@ export function IkonTurun(p: Props) {
   );
 }
 
+/** Berkas korpus — lembar dengan sudut terlipat dan garis teks. */
+export function IkonBerkas(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5L13.5 3Z" />
+          <path d="M13.5 3v5.5H19" />
+          <path d="M8.5 13h7M8.5 16.5h4.5" />
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * Panah lipat untuk sesuatu yang membuka ke bawah.
+ *
+ * Satu ikon yang BERPUTAR, bukan dua ikon berbeda. Mengganti bentuk saat
+ * dibuka membuat perubahannya meloncat; memutar bentuk yang sama membuat
+ * arah barunya terbaca sebagai gerakan.
+ */
+export function IkonLipat({ buka, ...p }: Props & { buka?: boolean }) {
+  return (
+    <Bingkai
+      {...p}
+      className={`${p.className ?? ""} ikon-lipat`.trim()}
+      anak={<path d="m8.5 6 6 6-6 6" />}
+    />
+  );
+}
+
+/** Urutkan — dua panah berlawanan arah. */
+export function IkonUrut(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M8 20V5M8 5 4.5 8.5M8 5l3.5 3.5" />
+          <path d="M16 4v15M16 19l3.5-3.5M16 19l-3.5-3.5" />
+        </>
+      }
+    />
+  );
+}
+
+/** Tutup / buang saringan. */
+export function IkonTutup(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="m6 6 12 12" />
+          <path d="m18 6-12 12" />
+        </>
+      }
+    />
+  );
+}
+
+/** Tautan ke luar — panah yang meninggalkan bingkainya. */
+export function IkonTautanLuar(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M19 13.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4.5" />
+          <path d="M14 4h6v6" />
+          <path d="M20 4 11.5 12.5" />
+        </>
+      }
+    />
+  );
+}
+
+/** Mundur / maju satu hari di radar. */
+export function IkonSebelum(p: Props) {
+  return <Bingkai {...p} anak={<path d="m14.5 6-6 6 6 6" />} />;
+}
+
+export function IkonSesudah(p: Props) {
+  return <Bingkai {...p} anak={<path d="m9.5 6 6 6-6 6" />} />;
+}
+
 /** Kirim — mata panah tunggal condong ke kanan, ujung tajam. */
 export function IkonKirim(p: Props) {
   return (
