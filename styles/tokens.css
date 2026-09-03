@@ -1,4 +1,20 @@
+/* Sistem desain Tiburon.
+ *
+ * Tekniknya dipinjam dari antarmuka terminal bergaya cyberpunk — satu tipografi
+ * monospace, satu aksen terang yang dipakai hemat, GLOW berwarna alih-alih
+ * bayangan jatuh, skala radius yang ketat, dan scrollbar yang benar-benar
+ * disentuh. Itu yang membuat sebuah antarmuka terasa dirancang, bukan
+ * dibangkitkan.
+ *
+ * Duniannya sengaja berbeda: bukan neon hijau di terminal gelap, melainkan
+ * cahaya biru di kedalaman laut. Bioluminesensi, bukan Matrix. Hiu, bukan
+ * hacker.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
 :root {
+  /* ---- Palet ---- */
   --abyss: #060B14;
   --deep: #0B2545;
   --ocean: #14487F;
@@ -6,14 +22,58 @@
   --foam: #A8DCFB;
   --shell: #F4F9FD;
 
-  /* Latar berubah mengikuti jalur aktif. Transisi diatur di layout. */
+  /* Warna pendukung. --danger dibelokkan ke merah karang, bukan merah murni,
+   * supaya tetap tinggal di dunia yang sama dengan palet lainnya. */
+  --danger: #FF5C63;
+  --warn: #FFB454;
+  --redup: #5B7FA6;
+  --garis: #16324F;
+  --hover: #0E2C4F;
+
+  /* ---- Tipografi ----
+   * Satu keluarga, empat bobot. Antarmuka yang memakai satu tipografi dengan
+   * yakin selalu terlihat lebih dirancang daripada yang mencampur tiga. */
+  --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", "Fira Code",
+    "Consolas", monospace;
+
+  /* ---- Skala radius ----
+   * Tiga nilai saja, dipakai menurut peran. Satu radius untuk segalanya
+   * meratakan hierarki dan itulah yang membuat halaman terasa generik. */
+  --radius-kecil: 4px;   /* chip, label, tombol rapat */
+  --radius: 8px;         /* kartu, gelembung pesan, input */
+  --radius-besar: 14px;  /* panel, modal, permukaan besar */
+
+  /* ---- Jarak ---- */
+  --ruang-1: 4px;
+  --ruang-2: 8px;
+  --ruang-3: 12px;
+  --ruang-4: 20px;
+  --ruang-5: 32px;
+
+  /* ---- Cahaya, bukan bayangan ----
+   * Kunci karakternya. Bayangan jatuh membuat elemen terlihat melayang di atas
+   * kertas; glow membuatnya terlihat MEMANCARKAN cahaya sendiri di kegelapan.
+   * Di dasar laut, satu-satunya sumber cahaya adalah makhluknya sendiri. */
+  --pendar: 0 0 12px rgba(63, 169, 245, 0.35);
+  --pendar-kuat: 0 0 20px rgba(63, 169, 245, 0.55), 0 0 44px rgba(63, 169, 245, 0.18);
+  --pendar-bahaya: 0 0 12px rgba(255, 92, 99, 0.4);
+  --panel: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  /* ---- Gerak ---- */
+  --alih-cepat: 150ms ease;
+  --alih: 200ms ease;
+  --alih-jalur: 400ms ease;
+
+  /* ---- Tata letak ---- */
+  --lebar-sidebar: 260px;
+
+  /* Latar berubah mengikuti jalur aktif. Menyelam dari permukaan ke dasar. */
   --latar-cepat: var(--shell);
   --latar-tiburon: var(--deep);
   --latar-kode: var(--abyss);
 
   --teks-terang: var(--shell);
   --teks-gelap: #0A1420;
-  --radius: 14px;
 }
 
 :root:not([data-tema="terang"]) {
@@ -26,5 +86,55 @@
 
 body {
   background: var(--latar-cepat);
-  transition: background 400ms ease;
+  color: var(--teks-terang);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.6;
+  transition: background var(--alih-jalur);
+}
+
+/* Angka yang berbaris rapi di kolom: nomor item radar, jumlah bintang,
+ * tanggal. Tanpa ini kolomnya bergoyang tiap angka berubah. */
+.angka {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar. Detail kecil yang hampir tidak pernah disentuh orang — dan
+ * justru karena itu, menyentuhnya langsung terasa. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ocean) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--ocean);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--surface);
+}
+
+/* Fokus keyboard harus terlihat. Menghapusnya membuat aplikasi tidak bisa
+ * dipakai tanpa tetikus. */
+:focus-visible {
+  outline: 2px solid var(--surface);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  body {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
