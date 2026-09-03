@@ -14,6 +14,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  IkonBaru,
+  IkonDesain,
+  IkonJadwal,
+  IkonKode,
+  IkonKorpus,
+  IkonRadar,
+  IkonSumber,
+  IkonTiburon,
+} from "@/components/Ikon";
 import "@/styles/tokens.css";
 
 type Mode = "obrolan" | "kode";
@@ -38,11 +48,11 @@ function umur(ms: number): string {
 }
 
 const NAV = [
-  { ikon: "🗂", label: "Korpus", href: "/app/korpus" },
-  { ikon: "📡", label: "Radar", href: "/app/radar" },
-  { ikon: "◆", label: "Riwayat sumber", href: "/app/sumber" },
-  { ikon: "◷", label: "Tugas terjadwal", href: "/app/jadwal" },
-  { ikon: "🎨", label: "Papan desain", href: "/app/desain" },
+  { Ikon: IkonKorpus, label: "Korpus", href: "/app/korpus" },
+  { Ikon: IkonRadar, label: "Radar", href: "/app/radar" },
+  { Ikon: IkonSumber, label: "Riwayat sumber", href: "/app/sumber" },
+  { Ikon: IkonJadwal, label: "Tugas terjadwal", href: "/app/jadwal" },
+  { Ikon: IkonDesain, label: "Papan desain", href: "/app/desain" },
 ];
 
 export default function LayoutAplikasi({ children }: { children: React.ReactNode }) {
@@ -60,10 +70,18 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
   }, []);
 
   return (
-    <div className="flex h-screen" style={{ background: "var(--abyss)" }}>
+    <div className="flex h-screen" style={{ background: "var(--lapis-0)" }}>
       <aside
         className="flex w-[300px] shrink-0 flex-col border-r"
-        style={{ borderColor: "var(--garis)", background: "var(--deep)" }}
+        style={{
+          borderColor: "var(--garis)",
+          // Sidebar duduk SATU tingkat di atas kanvas, dan kabut yang sama
+          // dilapiskan di atasnya supaya bagian bawahnya menggelap seperti
+          // sisa layar. Tanpa itu ia terlihat seperti panel yang ditempel,
+          // bukan bagian dari air yang sama.
+          backgroundColor: "var(--lapis-1)",
+          backgroundImage: "var(--kabut-dalam)",
+        }}
       >
         {/* Toggle mode — pill tersegmen di paling atas */}
         <div className="p-3">
@@ -82,7 +100,10 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
                     : { color: "var(--redup)" }
                 }
               >
-                {m === "obrolan" ? "🦈 Obrolan" : "⌘ Kode"}
+                <span className="flex items-center justify-center gap-1.5">
+                  {m === "obrolan" ? <IkonTiburon ukuran={14} /> : <IkonKode ukuran={14} />}
+                  {m === "obrolan" ? "Obrolan" : "Kode"}
+                </span>
               </button>
             ))}
           </div>
@@ -92,26 +113,47 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
         <div className="px-3 pb-2">
           <Link
             href="/app"
-            className="flex items-center gap-2 rounded-[var(--radius)] px-3 py-2 text-[14px] transition hover:brightness-125"
+            className="tombol-baru flex items-center gap-2.5 rounded-[var(--radius)] px-3 py-2 text-[14px]"
             style={{ background: "var(--hover)", color: "var(--shell)" }}
           >
-            <span style={{ color: "var(--surface)" }}>+</span> Baru
+            <IkonBaru ukuran={16} className="ikon-kail" />
+            Obrolan baru
           </Link>
         </div>
 
         {/* Navigasi berikon */}
         <nav className="px-3 pb-3">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="flex items-center gap-3 rounded-[var(--radius)] px-3 py-2 text-[14px] transition hover:bg-white/5"
-              style={{ color: jalan === n.href ? "var(--surface)" : "var(--shell)" }}
-            >
-              <span className="w-4 text-center">{n.ikon}</span>
-              {n.label}
-            </Link>
-          ))}
+          {NAV.map((n) => {
+            const aktif = jalan === n.href;
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                aria-current={aktif ? "page" : undefined}
+                className="baris-nav relative flex items-center gap-3 rounded-[var(--radius)] py-2 pl-4 pr-3 text-[14px]"
+                style={{ color: aktif ? "var(--foam)" : "var(--shell)" }}
+              >
+                {/* Rel kiri: penanda halaman aktif. Ia tumbuh dari tengah ke
+                    atas dan bawah, bukan muncul begitu saja -- gerakan yang
+                    sama seperti penanda gigi hiu di pemilih jalur. */}
+                <span
+                  aria-hidden
+                  className="absolute left-0 top-1/2 w-[2px] -translate-y-1/2 rounded-full"
+                  style={{
+                    height: aktif ? "18px" : "0px",
+                    background: "var(--surface)",
+                    boxShadow: aktif ? "var(--pendar)" : "none",
+                    transition: "height 200ms var(--keluar)",
+                  }}
+                />
+                <n.Ikon
+                  ukuran={17}
+                  className={aktif ? "ikon-aktif" : undefined}
+                />
+                {n.label}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Daftar percakapan */}
@@ -136,12 +178,16 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
                 style={{ color: "var(--shell)" }}
                 title={new Date(p.diperbarui).toLocaleString("id-ID")}
               >
+                {/* Yang paling baru diberi titik hangat, sisanya cincin dingin.
+                    Satu titik --hidup di kolom biru ini menjawab "mana yang
+                    terakhir kusentuh" tanpa perlu membaca satu kata pun. */}
                 <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{
-                    background: i === 0 ? "var(--surface)" : "transparent",
-                    border: i === 0 ? "none" : "1px solid var(--redup)",
-                  }}
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${i === 0 ? "titik-hidup" : ""}`}
+                  style={
+                    i === 0
+                      ? undefined
+                      : { background: "transparent", border: "1px solid var(--redup)" }
+                  }
                 />
                 <span className="min-w-0 flex-1 truncate">{p.judul}</span>
                 <span
@@ -157,19 +203,22 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
 
         {/* Baris akun */}
         <div
-          className="flex items-center gap-2 border-t px-4 py-3 text-[13px]"
+          className="flex items-center gap-2.5 border-t px-4 py-3 text-[13px]"
           style={{ borderColor: "var(--garis)" }}
         >
           <span
-            className="flex h-6 w-6 items-center justify-center rounded-full text-[11px]"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] leading-none"
             style={{ background: "var(--ocean)", color: "var(--shell)" }}
           >
             V
           </span>
-          <span style={{ color: "var(--shell)" }}>Veldan</span>
-          <span style={{ color: "var(--redup)" }}>· lokal</span>
-          <span className="ml-auto" style={{ color: "var(--redup)" }}>
-            ⌄
+          {/* min-w-0 pada pembungkus: tanpa itu nama panjang mendorong
+              baris melewati lebar sidebar, bukan terpotong di dalamnya. */}
+          <span className="min-w-0 flex-1 truncate" style={{ color: "var(--shell)" }}>
+            Veldan
+          </span>
+          <span className="shrink-0 text-[11px]" style={{ color: "var(--redup)" }}>
+            lokal
           </span>
         </div>
       </aside>

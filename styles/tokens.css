@@ -30,6 +30,36 @@
   --garis: #16324F;
   --hover: #0E2C4F;
 
+  /* ---- Tangga permukaan ----
+   * Sebelum ini hampir semua panel memakai --deep, jadi sidebar, kartu, dan
+   * kanvas terlihat satu bidang biru yang sama. Empat tingkat ini memakai
+   * warna yang PERSIS SAMA, cuma menyusunnya jadi kedalaman: makin ke atas
+   * makin dekat permukaan, makin terang.
+   *
+   * Dipakai menurut peran, bukan selera: 0 kanvas, 1 sidebar, 2 kartu yang
+   * duduk di atas sidebar, 3 elemen yang sedang aktif. */
+  --lapis-0: var(--abyss);
+  --lapis-1: var(--deep);
+  --lapis-2: var(--hover);
+  --lapis-3: var(--ocean);
+
+  /* ---- Tangga teks ----
+   * Ini akar rasa membosankan itu. Aplikasi cuma punya dua nada teks --
+   * --shell (#F4F9FD) dan --redup (#5B7FA6) -- dan lompatan di antaranya
+   * terlalu jauh, jadi segalanya tampak "terang sekali" atau "abu". --foam
+   * mengisi anak tangga yang hilang: cukup terang untuk menonjol, cukup biru
+   * untuk tetap tinggal di dalam air. */
+  --teks-utama: var(--shell);   /* isi pesan, judul */
+  --teks-kedua: var(--foam);    /* label aktif, angka yang berarti */
+  --teks-redup: var(--redup);   /* metadata, keterangan */
+
+  /* Nada hangat SATU-SATUNYA di aplikasi ini, dan sengaja begitu: di tengah
+   * layar yang seluruhnya biru, satu titik hangat menarik mata lebih kuat
+   * daripada biru seterang apa pun. Hex-nya sama persis dengan --warn --
+   * tidak ada warna baru masuk -- tapi namanya dipisah supaya "sedang hidup"
+   * tidak pernah tertukar arti dengan "ada yang salah". */
+  --hidup: var(--warn);
+
   /* ---- Tipografi ----
    * Satu keluarga, empat bobot. Antarmuka yang memakai satu tipografi dengan
    * yakin selalu terlihat lebih dirancang daripada yang mencampur tiga. */
@@ -62,7 +92,36 @@
   --pendar: 0 0 12px rgba(63, 169, 245, 0.35);
   --pendar-kuat: 0 0 20px rgba(63, 169, 245, 0.55), 0 0 44px rgba(63, 169, 245, 0.18);
   --pendar-bahaya: 0 0 12px rgba(255, 92, 99, 0.4);
+  /* Pendar hangat untuk penanda "sedang hidup". Satu-satunya cahaya bukan-biru
+   * di layar, jadi ia selalu jadi hal pertama yang terlihat. */
+  --pendar-hidup: 0 0 10px rgba(255, 180, 84, 0.45);
   --panel: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  /* ---- Kedalaman sebagai gradien ----
+   * Air sungguhan tidak pernah satu warna: makin dalam makin gelap. Latar
+   * datar itulah yang membuat layar terasa seperti bidang cat, bukan seperti
+   * air. Gradiennya memakai warna yang sudah ada, cuma menyusunnya vertikal.
+   *
+   * Posisi 55%: titik gelapnya didorong ke bawah bingkai supaya bagian yang
+   * terbaca (atas dan tengah) tetap punya cukup kontras untuk teks, dan
+   * gelapnya baru terasa di tepi bawah layar.
+   *
+   * Dibuat TEMBUS PANDANG dan dipasang sebagai background-image, bukan
+   * sebagai warna latarnya sendiri. Alasannya teknis dan penting: gradien
+   * tidak bisa ditransisikan CSS -- kalau latar jalur diganti jadi gradien,
+   * pergantian jalur berhenti beranimasi dan langsung meloncat. Dengan
+   * dipisah begini, background-color tetap datar dan tetap bisa beranimasi
+   * 250ms seperti sebelumnya, sementara kabut ini duduk diam di atasnya.
+   *
+   * Hitam dan putih di sini bukan warna baru: keduanya cuma menggelapkan dan
+   * menerangkan warna jalur yang sedang aktif, apa pun itu. */
+  --kabut-dalam: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0) 22%,
+    rgba(0, 0, 0, 0.14) 65%,
+    rgba(0, 0, 0, 0.42) 100%
+  );
 
   /* ---- Gerak ----
    * Kurva bawaan CSS (ease, ease-out) terlalu lemah untuk antarmuka.
@@ -80,13 +139,13 @@
   /* ---- Tata letak ---- */
   --lebar-sidebar: 260px;
 
-  /* Latar berubah mengikuti jalur aktif. Menyelam dari permukaan ke dasar. */
-  --latar-cepat: var(--shell);
-  --latar-tiburon: var(--deep);
+  /* Latar berubah mengikuti jalur aktif. Menyelam dari permukaan ke dasar.
+   * Tetap warna datar supaya pergantiannya bisa beranimasi; rasa kedalaman
+   * datang dari --kabut-dalam yang dilapiskan di atasnya. */
+  --latar-cepat: var(--deep);
+  --latar-tiburon: color-mix(in oklab, var(--deep) 72%, var(--abyss));
   --latar-kode: var(--abyss);
 
-  --teks-terang: var(--shell);
-  --teks-gelap: #0A1420;
 }
 
 :root:not([data-tema="terang"]) {
@@ -98,18 +157,210 @@
 }
 
 body {
-  background: var(--latar-cepat);
-  color: var(--teks-terang);
+  /* Dua properti terpisah, bukan `background` ringkas: warnanya beranimasi,
+   * kabutnya tidak. Menulisnya sebagai `background` akan menimpa keduanya
+   * sekaligus dan mengembalikan loncatan yang baru saja dihindari. */
+  background-color: var(--latar-cepat);
+  background-image: var(--kabut-dalam);
+  background-attachment: fixed;
+  color: var(--teks-utama);
   font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.6;
-  transition: background var(--alih-jalur);
+  transition: background-color var(--alih-jalur);
 }
 
 /* Angka yang berbaris rapi di kolom: nomor item radar, jumlah bintang,
  * tanggal. Tanpa ini kolomnya bergoyang tiap angka berubah. */
 .angka {
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- Ikon ----
+ *
+ * Ikon-ikonnya digambar di components/Ikon.tsx sebagai SVG stroke, jadi
+ * ketebalan garisnya bisa disentuh dari CSS -- sesuatu yang tidak mungkin
+ * dilakukan pada emoji. Itu dipakai untuk satu hal: menegaskan yang sedang
+ * aktif tanpa menambah warna kedua.
+ */
+.ikon-aktif {
+  stroke-width: 1.9;
+  filter: drop-shadow(0 0 5px rgba(63, 169, 245, 0.5));
+}
+
+/* Baris navigasi. Hover-nya menggeser isi 2px ke kanan, seperti sesuatu yang
+ * terdorong arus -- gerakan sekecil ini terbaca sebagai responsif, bukan
+ * sebagai animasi. Digerbangi (hover: hover) supaya sentuhan di layar sentuh
+ * tidak memicu hover palsu yang tersangkut. */
+.baris-nav {
+  transition:
+    background-color var(--alih-cepat),
+    transform var(--alih-cepat);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .baris-nav:hover {
+    background-color: rgba(255, 255, 255, 0.045);
+    transform: translateX(2px);
+  }
+
+  .tombol-baru:hover {
+    background-color: var(--lapis-3);
+  }
+
+  /* Kailnya berayun sedikit saat tombolnya disentuh tetikus. Satu-satunya
+   * ikon yang bergerak di seluruh aplikasi, dan cuma pada tombol yang
+   * memulai sesuatu. */
+  .tombol-baru:hover .ikon-kail {
+    transform: rotate(-8deg);
+  }
+}
+
+.tombol-baru {
+  transition: background-color var(--alih-cepat);
+}
+
+.ikon-kail {
+  transform-origin: 12px 4px;
+  transition: transform var(--alih) ;
+}
+
+/* ---- Markdown ----
+ *
+ * Ditulis di sini, bukan lewat kelas `prose` Tailwind: prose membawa palet
+ * abu-abunya sendiri dan langsung bertabrakan dengan dunia biru ini.
+ *
+ * Jarak antar-elemennya sengaja rapat. Jawaban AI cenderung panjang dan penuh
+ * daftar; jarak bawaan markdown membuatnya jadi dua kali lebih tinggi dari
+ * yang perlu, dan pengguna jadi menggulir lebih banyak dari yang seharusnya.
+ */
+.markdown-tiburon > :first-child {
+  margin-top: 0;
+}
+
+.markdown-tiburon > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-tiburon p {
+  margin: 0 0 0.85em;
+}
+
+.markdown-tiburon h1,
+.markdown-tiburon h2,
+.markdown-tiburon h3 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--teks-utama);
+  margin: 1.4em 0 0.5em;
+}
+
+.markdown-tiburon h1 {
+  font-size: 1.5em;
+}
+.markdown-tiburon h2 {
+  font-size: 1.28em;
+}
+.markdown-tiburon h3 {
+  font-size: 1.1em;
+}
+
+.markdown-tiburon ul,
+.markdown-tiburon ol {
+  margin: 0 0 0.85em;
+  padding-left: 1.35em;
+}
+
+.markdown-tiburon li {
+  margin: 0.2em 0;
+}
+
+.markdown-tiburon ul {
+  list-style: none;
+  padding-left: 1.1em;
+}
+
+/* Butir daftar digambar sendiri, bukan bulatan bawaan: sebuah tanda kecil
+ * berwarna --surface mengikat daftar ke palet, dan bentuk belah ketupatnya
+ * mengulang sudut tajam yang sama seperti di ikon-ikonnya. */
+.markdown-tiburon ul > li {
+  position: relative;
+}
+
+.markdown-tiburon ul > li::before {
+  content: "";
+  position: absolute;
+  left: -1.1em;
+  top: 0.62em;
+  width: 4px;
+  height: 4px;
+  background: var(--surface);
+  transform: rotate(45deg);
+}
+
+.markdown-tiburon blockquote {
+  margin: 0 0 0.85em;
+  padding-left: 0.9em;
+  border-left: 2px solid var(--ocean);
+  color: var(--teks-kedua);
+}
+
+.markdown-tiburon hr {
+  border: 0;
+  border-top: 1px solid var(--garis);
+  margin: 1.4em 0;
+}
+
+.markdown-tiburon strong {
+  color: var(--teks-utama);
+  font-weight: 600;
+}
+
+/* Tabel harus bisa menggulir sendiri. Tabel lebar yang tidak dibungkus akan
+ * mendorong seluruh kolom percakapan melewati lebar layar. */
+.markdown-tiburon table {
+  display: block;
+  overflow-x: auto;
+  width: max-content;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 0.85em;
+  font-size: 0.92em;
+}
+
+.markdown-tiburon th,
+.markdown-tiburon td {
+  border: 1px solid var(--garis);
+  padding: 0.35em 0.7em;
+  text-align: left;
+}
+
+.markdown-tiburon th {
+  background: var(--lapis-2);
+  color: var(--teks-kedua);
+  font-weight: 500;
+}
+
+/* Aksi di bawah jawaban. Tidak beranimasi muncul -- cuma warnanya yang
+ * berubah saat disentuh. Lihat komentar di AksiPesan.tsx. */
+.aksi-pesan {
+  transition:
+    color var(--alih-cepat),
+    background-color var(--alih-cepat);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .aksi-pesan:hover {
+    color: var(--teks-kedua);
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* Titik "sedang hidup" -- satu-satunya nada hangat di layar. */
+.titik-hidup {
+  background: var(--hidup);
+  box-shadow: var(--pendar-hidup);
 }
 
 /* Scrollbar. Detail kecil yang hampir tidak pernah disentuh orang — dan
@@ -258,5 +509,16 @@ body {
   .kursor {
     animation: none;
     opacity: 1;
+  }
+
+  /* Perpindahan posisi dihilangkan sama sekali -- durasi 0.01ms di atas cuma
+   * membuatnya seketika, bukan membuatnya tidak terjadi. Warna latarnya tetap
+   * berubah, jadi hover masih terbaca. */
+  .baris-nav:hover {
+    transform: none;
+  }
+
+  .tombol-baru:hover .ikon-kail {
+    transform: none;
   }
 }
