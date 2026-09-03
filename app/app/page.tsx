@@ -27,6 +27,15 @@ import { SpandukKuota } from "@/components/chat/SpandukKuota";
 import { MenuPerintah, PERINTAH, type Perintah } from "@/components/chat/MenuPerintah";
 import { KartuSumber } from "@/components/chat/KartuSumber";
 import { HitunganKorpus } from "@/components/chat/HitunganKorpus";
+import { Markdown } from "@/components/chat/Markdown";
+import { AksiPesan } from "@/components/chat/AksiPesan";
+import {
+  IkonBanding,
+  IkonCepat,
+  IkonModel,
+  IkonPeringatan,
+  IkonTiburon,
+} from "@/components/Ikon";
 import { useRouter } from "next/navigation";
 
 type KejadianAliran =
@@ -252,9 +261,33 @@ export default function HalamanObrolan() {
 
   async function kirim() {
     if (!teks.trim() || sibuk) return;
-    const riwayat: Balasan[] = [...pesan, { peran: "user", isi: teks }];
     const dikirim = teks;
+    setTeks("");
+    await jalankan(dikirim, [...pesan, { peran: "user", isi: dikirim }]);
+  }
 
+  /**
+   * Ulangi jawaban terakhir.
+   *
+   * Pertanyaannya dikirim ulang persis seperti semula, dan jawaban lama
+   * DIBUANG, bukan ditambahkan di bawahnya. Menumpuk dua jawaban untuk satu
+   * pertanyaan membuat riwayat sulit dibaca dan membuat "ulangi" terasa
+   * seperti "tanya lagi" — dua hal yang berbeda.
+   */
+  async function ulangi() {
+    if (sibuk) return;
+    const iPengguna = pesan.findLastIndex((p) => p.peran === "user");
+    if (iPengguna === -1) return;
+    await jalankan(pesan[iPengguna].isi, pesan.slice(0, iPengguna + 1));
+  }
+
+  /**
+   * Inti pengiriman, dipakai bersama oleh `kirim` dan `ulangi`.
+   *
+   * `riwayat` sudah harus berakhir pada pesan pengguna yang mau dijawab —
+   * itulah satu-satunya perbedaan antara mengirim baru dan mengulang.
+   */
+  async function jalankan(dikirim: string, riwayat: Balasan[]) {
     // Mode banding menaruh DUA balasan kosong sekaligus, satu per kolom.
     const barisBaru: Balasan[] = banding
       ? [
@@ -264,7 +297,6 @@ export default function HalamanObrolan() {
       : [{ peran: "assistant", isi: "", kueri: dikirim }];
 
     setPesan([...riwayat, ...barisBaru]);
-    setTeks("");
     setSibuk(true);
 
     // Sonar hanya berdenyut kalau ada jalur yang benar-benar mencari korpus.
@@ -342,7 +374,8 @@ export default function HalamanObrolan() {
       <div key={kunci} className="space-y-2">
         {p.peringatan && (
           <div className="text-[12px]" style={{ color: "var(--warn)" }}>
-            \u26a0 {p.peringatan}
+            <IkonPeringatan ukuran={13} className="mr-1 inline-block align-[-2px]" />
+            {p.peringatan}
           </div>
         )}
         {(p.model || p.sumber?.length) && (
@@ -352,7 +385,8 @@ export default function HalamanObrolan() {
                 className="rounded-[var(--radius-kecil)] px-2 py-0.5"
                 style={{ background: "var(--hover)", color: "var(--redup)" }}
               >
-                \u21aa {p.model}
+                <IkonModel ukuran={11} className="mr-1 inline-block align-[-1px]" />
+                {p.model}
               </span>
             )}
             {p.sumber?.map((b, j) => (
@@ -362,11 +396,8 @@ export default function HalamanObrolan() {
             ))}
           </div>
         )}
-        <div
-          className="whitespace-pre-wrap text-[15px] leading-[1.75]"
-          style={{ color: "var(--shell)" }}
-        >
-          {p.isi}
+        <div className="text-[15px] leading-[1.75]" style={{ color: "var(--teks-utama)" }}>
+          <Markdown isi={p.isi} />
           {sibuk && !p.isi && (
             <span
               className="kursor ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px]"
@@ -374,6 +405,9 @@ export default function HalamanObrolan() {
             />
           )}
         </div>
+        {/* Aksi hanya muncul pada jawaban yang sudah selesai: menyalin atau
+            mengulang jawaban yang masih setengah jalan tidak pernah berguna. */}
+        {p.isi && !sibuk && <AksiPesan isi={p.isi} onUlangi={() => ulangi()} />}
       </div>
     );
   }
@@ -435,7 +469,10 @@ export default function HalamanObrolan() {
               : { color: "var(--redup)" }
           }
         >
-          \u21c9 Banding
+          <span className="flex items-center gap-1.5">
+            <IkonBanding ukuran={13} />
+            Banding
+          </span>
         </button>
         <span className="ml-auto flex items-center gap-3">
           {/* Hitungan cocok hanya berarti di jalur yang membaca korpus. */}
@@ -594,7 +631,10 @@ export default function HalamanObrolan() {
                           style={{ color: "var(--redup)" }}
                         >
                           <span style={{ color: p.kolom === "tiburon" ? "var(--surface)" : undefined }}>
-                            {p.kolom === "tiburon" ? "\U0001F988 dengan korpus" : "\u26a1 tanpa korpus"}
+                            <span className="flex items-center gap-1.5">
+                              {p.kolom === "tiburon" ? <IkonTiburon ukuran={12} /> : <IkonCepat ukuran={12} />}
+                              {p.kolom === "tiburon" ? "dengan korpus" : "tanpa korpus"}
+                            </span>
                           </span>
                           <span className="angka">{p.kolom === "tiburon" ? "200 m" : "0 m"}</span>
                         </div>
