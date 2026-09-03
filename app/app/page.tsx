@@ -5,6 +5,27 @@ import { PemilihJalur, LATAR_JALUR, type Jalur } from "@/components/chat/Pemilih
 
 type Balasan = { peran: "user" | "assistant"; isi: string; model?: string; sumber?: string[]; peringatan?: string };
 
+type KejadianAliran =
+  | { jenis: "model"; nama: string }
+  | { jenis: "teks"; teks: string }
+  | { jenis: "sumber"; berkas: string[] }
+  | { jenis: "peringatan"; pesan: string }
+  | { jenis: "gagal"; pesan: string }
+  | { jenis: "selesai" };
+
+/** Baris `data:` yang cacat dilewati — satu baris rusak tidak boleh menjatuhkan seluruh jawaban yang sedang mengalir. */
+function bacaKejadian(baris: string): KejadianAliran | null {
+  try {
+    const k: unknown = JSON.parse(baris);
+    if (typeof k === "object" && k !== null && "jenis" in k) {
+      return k as KejadianAliran;
+    }
+  } catch {
+    // diabaikan — lihat komentar di atas
+  }
+  return null;
+}
+
 export default function HalamanObrolan() {
   const [jalur, setJalur] = useState<Jalur>("cepat");
   const [pesan, setPesan] = useState<Balasan[]>([]);
@@ -18,39 +39,62 @@ export default function HalamanObrolan() {
     setTeks("");
     setSibuk(true);
 
-    const resp = await fetch("/api/cepat", {
-      method: "POST",
-      body: JSON.stringify({
-        jalur,
-        pesan: riwayat.map((p) => ({ role: p.peran, content: p.isi })),
-      }),
-    });
+    try {
+      const resp = await fetch("/api/cepat", {
+        method: "POST",
+        body: JSON.stringify({
+          jalur,
+          pesan: riwayat.map((p) => ({ role: p.peran, content: p.isi })),
+        }),
+      });
 
-    const pembaca = resp.body!.getReader();
-    const dekoder = new TextDecoder();
-    let sisa = "";
-    while (true) {
-      const { done, value } = await pembaca.read();
-      if (done) break;
-      sisa += dekoder.decode(value, { stream: true });
-      const baris = sisa.split("\n");
-      sisa = baris.pop() ?? "";
-      for (const b of baris) {
-        if (!b.startsWith("data: ")) continue;
-        const k = JSON.parse(b.slice(6));
-        setPesan((lama) => {
-          const salin = [...lama];
-          const akhir = salin[salin.length - 1];
-          if (k.jenis === "teks") akhir.isi += k.teks;
-          if (k.jenis === "model") akhir.model = k.nama;
-          if (k.jenis === "sumber") akhir.sumber = k.berkas;
-          if (k.jenis === "peringatan") akhir.peringatan = k.pesan;
-          if (k.jenis === "gagal") akhir.isi = `⚠️ ${k.pesan}`;
-          return salin;
-        });
+      if (!resp.ok || !resp.body) {
+        throw new Error(`Server membalas ${resp.status}${resp.body ? "" : " tanpa isi"}`);
       }
+
+      const pembaca = resp.body.getReader();
+      const dekoder = new TextDecoder();
+      let sisa = "";
+      while (true) {
+        const { done, value } = await pembaca.read();
+        if (done) break;
+        sisa += dekoder.decode(value, { stream: true });
+        const baris = sisa.split("\n");
+        sisa = baris.pop() ?? "";
+        for (const b of baris) {
+          if (!b.startsWith("data: ")) continue;
+          const k = bacaKejadian(b.slice(6));
+          if (!k) continue;
+          setPesan((lama) => {
+            const salin = [...lama];
+            const akhir = salin[salin.length - 1];
+            if (k.jenis === "teks") akhir.isi += k.teks;
+            if (k.jenis === "model") akhir.model = k.nama;
+            if (k.jenis === "sumber") akhir.sumber = k.berkas;
+            if (k.jenis === "peringatan") akhir.peringatan = k.pesan;
+            if (k.jenis === "gagal") {
+              akhir.isi = akhir.isi ? `${akhir.isi}\n\n⚠️ ${k.pesan}` : `⚠️ ${k.pesan}`;
+            }
+            return salin;
+          });
+        }
+      }
+    } catch (e) {
+      // Tanpa blok ini, kegagalan jaringan (fetch melempar) mengunci layar
+      // tanpa pesan apa pun: sibuk macet true, input terkunci selamanya.
+      setPesan((lama) => {
+        const salin = [...lama];
+        const akhir = salin[salin.length - 1];
+        akhir.isi = akhir.isi
+          ? `${akhir.isi}\n\n⚠️ Terputus: ${(e as Error).message}`
+          : `⚠️ Gagal menghubungi server: ${(e as Error).message}`;
+        return salin;
+      });
+    } finally {
+      // WAJIB di finally, bukan di akhir try — kegagalan apa pun sebelum ini
+      // tidak boleh meninggalkan input terkunci selamanya.
+      setSibuk(false);
     }
-    setSibuk(false);
   }
 
   return (
