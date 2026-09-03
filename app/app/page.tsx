@@ -1,9 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { PemilihJalur, LATAR_JALUR, type Jalur } from "@/components/chat/PemilihJalur";
+/**
+ * Layar chat Tiburon.
+ *
+ * Bahasa visualnya mengambil yang terbaik dari aplikasi chat yang sudah matang:
+ *
+ *   ChatGPT    kolom pesan sempit dan terpusat (~48rem) — baris teks yang
+ *              terlalu lebar melelahkan mata; ini yang membuatnya enak dibaca
+ *              berjam-jam.
+ *   Claude.ai  pesan asisten tanpa gelembung, mengalir seperti dokumen; hanya
+ *              pesan pengguna yang diberi gelembung. Bacaan panjang jadi
+ *              terasa seperti tulisan, bukan seperti chat aplikasi pesan.
+ *   Grok       bilah status tipis di atas — konteks terpakai, jalur aktif.
+ *   Claude Code komposer membulat dengan pemilih di dalamnya, bukan di luar.
+ *
+ * Komponen `brainless` (tool call, diff, izin) TIDAK dipakai di sini — itu
+ * bahasa agent coding di terminal, dan tempatnya nanti di jalur ⌘ Kode.
+ */
 
-type Balasan = { peran: "user" | "assistant"; isi: string; model?: string; sumber?: string[]; peringatan?: string };
+import { useEffect, useRef, useState } from "react";
+import { PemilihJalur, type Jalur } from "@/components/chat/PemilihJalur";
+import { PengukurKedalaman } from "@/components/chat/PengukurKedalaman";
+import { SaljuLaut } from "@/components/chat/SaljuLaut";
+import { Sonar } from "@/components/chat/Sonar";
+import { SpandukKuota } from "@/components/chat/SpandukKuota";
+import { MenuPerintah, PERINTAH, type Perintah } from "@/components/chat/MenuPerintah";
+import { KartuSumber } from "@/components/chat/KartuSumber";
+import { HitunganKorpus } from "@/components/chat/HitunganKorpus";
+import { useRouter } from "next/navigation";
 
 type KejadianAliran =
   | { jenis: "model"; nama: string }
@@ -13,15 +37,23 @@ type KejadianAliran =
   | { jenis: "gagal"; pesan: string }
   | { jenis: "selesai" };
 
-/** Baris `data:` yang cacat dilewati — satu baris rusak tidak boleh menjatuhkan seluruh jawaban yang sedang mengalir. */
+type Balasan = {
+  peran: "user" | "assistant";
+  isi: string;
+  model?: string;
+  sumber?: string[];
+  peringatan?: string;
+  /** Pertanyaan yang memicu balasan ini -- dipakai kartu sumber untuk
+   *  mengambil potongan yang sama dan menyorot kata yang cocok. */
+  kueri?: string;
+};
+
 function bacaKejadian(baris: string): KejadianAliran | null {
   try {
     const k: unknown = JSON.parse(baris);
-    if (typeof k === "object" && k !== null && "jenis" in k) {
-      return k as KejadianAliran;
-    }
+    if (typeof k === "object" && k !== null && "jenis" in k) return k as KejadianAliran;
   } catch {
-    // diabaikan — lihat komentar di atas
+    // potongan SSE belum utuh — lewati
   }
   return null;
 }
@@ -31,13 +63,135 @@ export default function HalamanObrolan() {
   const [pesan, setPesan] = useState<Balasan[]>([]);
   const [teks, setTeks] = useState("");
   const [sibuk, setSibuk] = useState(false);
+  const [idPercakapan, setIdPercakapan] = useState<string | null>(null);
+  const [galatRiwayat, setGalatRiwayat] = useState("");
+  const [mencariKorpus, setMencariKorpus] = useState(false);
+  const [kuotaHabis, setKuotaHabis] = useState("");
+  const bawah = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Menu perintah muncul saat kotak diawali "/" dan belum ada spasi.
+  const menuTerbuka = teks.startsWith("/") && !teks.includes(" ");
+
+  useEffect(() => {
+    // Dipanggil opsional: scrollIntoView tidak ada di semua lingkungan
+    // (jsdom tidak punya). Tanpa `?.` seluruh komponen gagal render di uji.
+    bawah.current?.scrollIntoView?.({ behavior: "smooth" });
+  }, [pesan]);
+
+  // Pintasan kedalaman: Ctrl/Cmd + 1, 2, 3.
+  //
+  // Sengaja TANPA animasi pemicu apa pun -- aksi yang dijalankan lewat papan
+  // ketik dipakai puluhan kali sehari, dan animasi di sana jadi hambatan.
+  // Pengukur kedalaman di tepi tetap berpindah 180ms; itu sudah cukup jadi
+  // umpan balik.
+  useEffect(() => {
+    function tekan(e: KeyboardEvent) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const peta: Record<string, Jalur> = { "1": "cepat", "2": "tiburon", "3": "kode" };
+      const tujuan = peta[e.key];
+      if (!tujuan) return;
+      e.preventDefault();
+      setJalur(tujuan);
+    }
+    window.addEventListener("keydown", tekan);
+    return () => window.removeEventListener("keydown", tekan);
+  }, []);
+
+  useEffect(() => {
+    let dibatalkan = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/percakapan");
+        if (!r.ok) throw new Error(`daftar percakapan: HTTP ${r.status}`);
+        const daftar: { id: string }[] = await r.json();
+        if (dibatalkan || !daftar.length) return;
+        const id = daftar[0].id;
+        const rp = await fetch(`/api/percakapan?id=${id}`);
+        if (!rp.ok) throw new Error(`isi percakapan: HTTP ${rp.status}`);
+        const lama: { role: string; content: string }[] = await rp.json();
+        if (dibatalkan) return;
+        setIdPercakapan(id);
+        setPesan(lama.map((p) => ({ peran: p.role as "user" | "assistant", isi: p.content })));
+      } catch (e) {
+        if (!dibatalkan) {
+          setGalatRiwayat(
+            `Riwayat gagal dimuat: ${(e as Error).message}. ` +
+              `Percakapan lamamu masih tersimpan — muat ulang untuk mencoba lagi.`,
+          );
+        }
+      }
+    })();
+    return () => {
+      dibatalkan = true;
+    };
+  }, []);
+
+  async function pastikanPercakapan(judul: string): Promise<string | null> {
+    if (idPercakapan) return idPercakapan;
+    try {
+      const r = await fetch("/api/percakapan", {
+        method: "POST",
+        body: JSON.stringify({ judul: judul.slice(0, 60) }),
+      });
+      if (!r.ok) return null;
+      const { id } = await r.json();
+      setIdPercakapan(id);
+      return id;
+    } catch {
+      return null;
+    }
+  }
+
+  function simpan(id: string | null, role: "user" | "assistant", content: string) {
+    if (!id) return;
+    void fetch("/api/percakapan", {
+      method: "PUT",
+      body: JSON.stringify({ id, pesan: { role, content } }),
+    }).catch(() => {});
+  }
+
+  function jalankanPerintah(cmd: Perintah) {
+    if (cmd.tuju) {
+      router.push(cmd.tuju);
+      setTeks("");
+      return;
+    }
+    if (cmd.jalur) setJalur(cmd.jalur);
+    setTeks(cmd.isi ?? "");
+  }
 
   async function kirim() {
     if (!teks.trim() || sibuk) return;
     const riwayat = [...pesan, { peran: "user" as const, isi: teks }];
-    setPesan([...riwayat, { peran: "assistant", isi: "" }]);
+    setPesan([...riwayat, { peran: "assistant", isi: "", kueri: teks }]);
+    const dikirim = teks;
     setTeks("");
     setSibuk(true);
+
+    // Sonar hanya berdenyut di jalur yang benar-benar mencari korpus.
+    //
+    // Pencarian korpusnya sendiri 0,5 ms -- jauh di bawah batas persepsi.
+    // Tanpa lantai waktu, cincinnya cuma berkedip sepersekian detik dan justru
+    // mengganggu. 700 ms cukup untuk satu putaran penuh terbaca sebagai
+    // gerakan yang disengaja, dan masih jauh di bawah waktu jawaban datang.
+    let bolehMatikanSonar = false;
+    if (jalur === "tiburon") {
+      setMencariKorpus(true);
+      window.setTimeout(() => {
+        bolehMatikanSonar = true;
+      }, 700);
+    } else {
+      bolehMatikanSonar = true;
+    }
+
+    const matikanSonar = () => {
+      if (bolehMatikanSonar) setMencariKorpus(false);
+      else window.setTimeout(() => setMencariKorpus(false), 700);
+    };
+
+    const id = await pastikanPercakapan(dikirim);
+    simpan(id, "user", dikirim);
 
     try {
       const resp = await fetch("/api/cepat", {
@@ -47,7 +201,6 @@ export default function HalamanObrolan() {
           pesan: riwayat.map((p) => ({ role: p.peran, content: p.isi })),
         }),
       });
-
       if (!resp.ok || !resp.body) {
         throw new Error(`Server membalas ${resp.status}${resp.body ? "" : " tanpa isi"}`);
       }
@@ -55,7 +208,7 @@ export default function HalamanObrolan() {
       const pembaca = resp.body.getReader();
       const dekoder = new TextDecoder();
       let sisa = "";
-      while (true) {
+      for (;;) {
         const { done, value } = await pembaca.read();
         if (done) break;
         sisa += dekoder.decode(value, { stream: true });
@@ -65,6 +218,12 @@ export default function HalamanObrolan() {
           if (!b.startsWith("data: ")) continue;
           const k = bacaKejadian(b.slice(6));
           if (!k) continue;
+          if (k.jenis === "sumber" || k.jenis === "peringatan") matikanSonar();
+          // Kegagalan seluruh rantai model diangkat jadi spanduk, bukan
+          // dibiarkan tenggelam sebagai teks di dalam gelembung jawaban.
+          if (k.jenis === "gagal" && /semua model gagal/i.test(k.pesan)) {
+            setKuotaHabis(k.pesan);
+          }
           setPesan((lama) => {
             const salin = [...lama];
             const akhir = salin[salin.length - 1];
@@ -73,71 +232,271 @@ export default function HalamanObrolan() {
             if (k.jenis === "sumber") akhir.sumber = k.berkas;
             if (k.jenis === "peringatan") akhir.peringatan = k.pesan;
             if (k.jenis === "gagal") {
-              akhir.isi = akhir.isi ? `${akhir.isi}\n\n⚠️ ${k.pesan}` : `⚠️ ${k.pesan}`;
+              akhir.isi = akhir.isi ? `${akhir.isi}\n\n⚠ ${k.pesan}` : `⚠ ${k.pesan}`;
             }
             return salin;
           });
         }
       }
+
+      setPesan((lama) => {
+        const akhir = lama[lama.length - 1];
+        if (akhir?.isi) simpan(id, "assistant", akhir.isi);
+        return lama;
+      });
     } catch (e) {
-      // Tanpa blok ini, kegagalan jaringan (fetch melempar) mengunci layar
-      // tanpa pesan apa pun: sibuk macet true, input terkunci selamanya.
       setPesan((lama) => {
         const salin = [...lama];
         const akhir = salin[salin.length - 1];
         akhir.isi = akhir.isi
-          ? `${akhir.isi}\n\n⚠️ Terputus: ${(e as Error).message}`
-          : `⚠️ Gagal menghubungi server: ${(e as Error).message}`;
+          ? `${akhir.isi}\n\n⚠ Terputus: ${(e as Error).message}`
+          : `⚠ Gagal menghubungi server: ${(e as Error).message}`;
         return salin;
       });
     } finally {
-      // WAJIB di finally, bukan di akhir try — kegagalan apa pun sebelum ini
-      // tidak boleh meninggalkan input terkunci selamanya.
       setSibuk(false);
+      matikanSonar();
     }
   }
 
+  const kosong = pesan.length === 0;
+
+  const komposer = (
+    <div className="w-full">
+      {menuTerbuka && <MenuPerintah kueri={teks} onPilih={jalankanPerintah} />}
+      <div
+        className="w-full rounded-[var(--radius-besar)] border p-2 transition"
+        style={{
+          borderColor: "var(--garis)",
+          background: "var(--abyss)",
+          boxShadow: sibuk ? "var(--pendar)" : undefined,
+        }}
+      >
+      <textarea
+        value={teks}
+        onChange={(e) => setTeks(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            // Saat menu perintah terbuka, Enter memilih yang pertama cocok
+            // alih-alih mengirim "/korpus" sebagai pertanyaan.
+            if (menuTerbuka) {
+              const cocok = PERINTAH.find((c) => c.kunci.startsWith(teks.toLowerCase()));
+              if (cocok) {
+                jalankanPerintah(cocok);
+                return;
+              }
+            }
+            void kirim();
+          }
+        }}
+        rows={kosong ? 2 : 1}
+        placeholder="Tanya apa saja, / untuk perintah"
+        className="max-h-40 w-full resize-none bg-transparent px-3 py-2 text-[15px] outline-none"
+        style={{ color: "var(--shell)" }}
+      />
+      {/* Baris kontrol DI DALAM komposer -- gagasan dari Claude desktop:
+          tambah, pemilih jalur, penanda mode, kirim. Semua dalam satu kotak. */}
+      <div className="flex items-center gap-2 px-1 pt-1">
+        <button
+          className="flex h-7 w-7 items-center justify-center rounded-full text-[15px] transition hover:bg-white/10"
+          style={{ color: "var(--redup)" }}
+          title="Lampirkan materi ke korpus"
+        >
+          +
+        </button>
+        <PemilihJalur jalur={jalur} onGanti={setJalur} />
+        <span className="ml-auto flex items-center gap-3">
+          {/* Hitungan cocok hanya berarti di jalur yang membaca korpus. */}
+          <HitunganKorpus kueri={teks} aktif={jalur === "tiburon"} />
+          <span
+            className="angka text-[11px]"
+            style={{ color: "var(--redup)" }}
+            title="Ctrl+1 permukaan · Ctrl+2 korpus · Ctrl+3 dasar"
+          >
+            {jalur === "cepat" ? "0 m" : jalur === "tiburon" ? "200 m" : "1000 m"}
+          </span>
+        </span>
+        <span className="relative inline-flex">
+          <Sonar aktif={mencariKorpus} />
+          <button
+            onClick={() => void kirim()}
+            disabled={sibuk || !teks.trim()}
+            aria-label="Kirim pesan"
+            className="relative rounded-[var(--radius)] px-3 py-1.5 text-[13px] transition disabled:opacity-30"
+            style={{ background: "var(--surface)", color: "var(--abyss)" }}
+          >
+            {sibuk ? "…" : "Kirim"}
+          </button>
+        </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const latar =
+    jalur === "cepat"
+      ? "var(--latar-cepat)"
+      : jalur === "tiburon"
+        ? "var(--latar-tiburon)"
+        : "var(--latar-kode)";
+
   return (
     <div
-      className="flex h-screen flex-col transition-colors duration-[400ms]"
-      style={{ background: LATAR_JALUR[jalur] }}
+      className="relative flex h-screen overflow-hidden"
+      style={{ background: latar, transition: "background var(--alih-jalur)" }}
     >
-      <div className="flex-1 space-y-4 overflow-y-auto p-6">
-        {pesan.map((p, i) => (
-          <div key={i} className="max-w-3xl">
-            <div className="mb-1 text-xs opacity-60">{p.peran === "user" ? "Kamu" : "🦈 Tiburon"}</div>
-            {p.peringatan && (
-              <div className="mb-2 rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs">
-                ⚠️ {p.peringatan}
-              </div>
-            )}
-            {(p.model || p.sumber?.length) && (
-              <div className="mb-2 flex gap-2 text-xs opacity-70">
-                {p.model && <span className="rounded bg-white/10 px-2 py-0.5">↪ {p.model}</span>}
-                {p.sumber?.length ? (
-                  <span className="rounded bg-white/10 px-2 py-0.5">📄 {p.sumber.length} sumber</span>
-                ) : null}
-              </div>
-            )}
-            <div className="whitespace-pre-wrap">{p.isi || (sibuk && i === pesan.length - 1 ? "…" : "")}</div>
-          </div>
-        ))}
+      {/* Salju laut: hanya turun di kedalaman, makin rapat makin dalam. */}
+      <SaljuLaut jalur={jalur} />
+
+      {/* Pengukur kedalaman menempel di tepi kiri, setinggi layar. */}
+      <div className="relative z-10 hidden shrink-0 pl-4 md:flex">
+        <PengukurKedalaman jalur={jalur} />
       </div>
 
-      <div className="border-t border-white/10 p-4">
-        <PemilihJalur jalur={jalur} onGanti={setJalur} />
-        <div className="mt-2 flex gap-2">
-          <input
-            value={teks}
-            onChange={(e) => setTeks(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && kirim()}
-            placeholder="Tanya apa saja…"
-            className="flex-1 rounded-lg bg-white/10 px-3 py-2 outline-none"
-          />
-          <button onClick={kirim} disabled={sibuk} className="rounded-lg bg-white/15 px-4 disabled:opacity-40">
-            →
-          </button>
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-3xl px-6 py-8">
+          {kuotaHabis && (
+            <SpandukKuota pesan={kuotaHabis} onTutup={() => setKuotaHabis("")} />
+          )}
+
+          {galatRiwayat && (
+            <div
+              role="alert"
+              className="mb-6 rounded-[var(--radius)] border px-4 py-3 text-[13px]"
+              style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
+            >
+              ⚠ {galatRiwayat}
+            </div>
+          )}
+
+          {kosong ? (
+            <div className="pt-[12vh]">
+              {/* Sapaan serif besar -- gagasan dari Claude desktop. Serif di
+                  tengah antarmuka monospace terasa disengaja, bukan kebetulan. */}
+              <h1
+                className="mb-8 flex items-center justify-center gap-4 text-center text-[36px] leading-tight"
+                style={{
+                  color: "var(--shell)",
+                  fontFamily: "var(--font-serif)",
+                }}
+              >
+                <span style={{ filter: "drop-shadow(var(--pendar-kuat))" }}>🦈</span>
+                Tiburon siap
+              </h1>
+
+              {komposer}
+
+              {/* Chip pintasan di bawah komposer -- gagasan dari Claude desktop. */}
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                {[
+                  "Apa isi radar pagi ini?",
+                  "Cari di korpusku",
+                  "Ringkas satu buku",
+                ].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setTeks(s)}
+                    className="rounded-full border px-3 py-1 text-[12px] transition hover:brightness-125"
+                    style={{ borderColor: "var(--garis)", color: "var(--redup)" }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Bagian "Aktif" -- gagasan dari Claude desktop. */}
+              <div className="mt-14">
+                <div
+                  className="mb-3 flex items-baseline justify-between text-[12px]"
+                  style={{ color: "var(--redup)" }}
+                >
+                  <span>Korpus aktif</span>
+                  <span className="angka">164 berkas terindeks</span>
+                </div>
+                <div
+                  className="flex items-center gap-3 rounded-[var(--radius)] border px-4 py-3"
+                  style={{ borderColor: "var(--garis)" }}
+                >
+                  <span className="text-[18px]">📡</span>
+                  <div className="min-w-0">
+                    <div className="text-[14px]" style={{ color: "var(--shell)" }}>
+                      Radar Pagi — 3 September
+                    </div>
+                    <div className="text-[12px]" style={{ color: "var(--redup)" }}>
+                      13 dari 40 item bertanda relevan untuk proyekmu
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-7">
+              {pesan.map((p, i) =>
+                p.peran === "user" ? (
+                  <div key={i} className="flex justify-end">
+                    <div
+                      className="max-w-[85%] rounded-[var(--radius-besar)] px-4 py-2.5 text-[14px]"
+                      style={{ background: "var(--ocean)", color: "var(--shell)" }}
+                    >
+                      {p.isi}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i} className="space-y-2">
+                    {p.peringatan && (
+                      <div className="text-[12px]" style={{ color: "var(--warn)" }}>
+                        ⚠ {p.peringatan}
+                      </div>
+                    )}
+                    {(p.model || p.sumber?.length) && (
+                      <div className="flex flex-col gap-2 text-[11px] sm:flex-row sm:flex-wrap sm:items-start">
+                        {p.model && (
+                          <span
+                            className="rounded-[var(--radius-kecil)] px-2 py-0.5"
+                            style={{ background: "var(--hover)", color: "var(--redup)" }}
+                          >
+                            ↪ {p.model}
+                          </span>
+                        )}
+                        {p.sumber?.map((b, j) => (
+                          /* Naik dari kedalaman, bertahap 40ms. Bisa diklik:
+                             potongan korpus aslinya terbuka, kata yang cocok
+                             disorot -- klaim jadi bisa diperiksa. */
+                          <span key={b} style={{ animationDelay: `${j * 40}ms` }}>
+                            <KartuSumber berkas={b} kueri={p.kueri ?? ""} />
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      className="whitespace-pre-wrap text-[15px] leading-[1.75]"
+                      style={{ color: "var(--shell)" }}
+                    >
+                      {p.isi}
+                      {sibuk && i === pesan.length - 1 && (
+                        <span
+                          className="kursor ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px]"
+                          style={{ background: "var(--surface)" }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ),
+              )}
+              <div ref={bawah} />
+            </div>
+            )}
+          </div>
         </div>
+
+        {/* Saat sudah ada pesan, komposer menempel di bawah. */}
+        {!kosong && (
+          <div className="shrink-0 px-6 pb-6">
+            <div className="mx-auto w-full max-w-3xl">{komposer}</div>
+          </div>
+        )}
       </div>
     </div>
   );
