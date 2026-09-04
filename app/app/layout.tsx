@@ -17,6 +17,13 @@ import { useEffect, useState } from "react";
 import { BarisPercakapan, type Percakapan } from "@/components/BarisPercakapan";
 import { DaftarProyek, type Proyek } from "@/components/DaftarProyek";
 import { MenuAkun } from "@/components/MenuAkun";
+import { MenuUrut, bacaUrutan, urutkan, type Urutan } from "@/components/MenuUrut";
+import {
+  PenyediaJalurAwal,
+  modeDari,
+  useJalurAwal,
+  type Mode,
+} from "@/components/JalurAwal";
 import {
   IkonBaru,
   IkonDesain,
@@ -29,11 +36,8 @@ import {
   IkonCari,
   IkonTiburon,
   IkonTutup,
-  IkonUrut,
 } from "@/components/Ikon";
 import "@/styles/tokens.css";
-
-type Mode = "obrolan" | "kode";
 
 /**
  * Umur ringkas untuk daftar percakapan: 4m, 3j, 6h, 2b.
@@ -63,15 +67,40 @@ const NAV = [
   { Ikon: IkonAtur, label: "Pengaturan", href: "/app/pengaturan" },
 ];
 
+/**
+ * Pembungkus penyedia.
+ *
+ * Jalur awal harus dibaca DUA tempat -- toggle di sidebar yang menyetelnya,
+ * dan layar obrolan yang memulai dari sana -- jadi keadaannya duduk di atas
+ * keduanya. Menyimpannya di salah satu lalu mengoper lewat prop tidak bisa:
+ * layar obrolan datang lewat `children`, bukan dipanggil dari sini.
+ */
 export default function LayoutAplikasi({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<Mode>("obrolan");
+  return (
+    <PenyediaJalurAwal>
+      <Kerangka>{children}</Kerangka>
+    </PenyediaJalurAwal>
+  );
+}
+
+function Kerangka({ children }: { children: React.ReactNode }) {
+  const { jalurAwal, setMode } = useJalurAwal();
+  const mode = modeDari(jalurAwal);
   const [percakapan, setPercakapan] = useState<Percakapan[]>([]);
   const [galat, setGalat] = useState("");
   const [kueri, setKueri] = useState("");
   const [hasil, setHasil] = useState<Percakapan[] | null>(null);
   const [proyek, setProyek] = useState<Proyek[]>([]);
+  // Dibaca di useEffect, bukan saat inisialisasi: localStorage tidak ada di
+  // server. Daftar obrolan sendiri juga dimuat di klien, jadi urutan awal
+  // yang sesaat salah tidak pernah sempat terlihat.
+  const [urutan, setUrutan] = useState<Urutan>("terbaru");
   const jalan = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    setUrutan(bacaUrutan());
+  }, []);
 
   useEffect(() => {
     fetch("/api/percakapan")
@@ -123,7 +152,10 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
   // `hasil` null berarti tidak sedang mencari; array kosong berarti sedang
   // mencari dan memang tidak ada yang cocok. Keduanya harus dibedakan, karena
   // pesan yang ditampilkan untuk masing-masing berbeda.
-  const terlihat = hasil ?? percakapan;
+  // Hasil pencarian TIDAK diurutkan ulang: yang datang dari server sudah
+  // berurut menurut kecocokan, dan mengurutkannya menurut waktu membuang
+  // satu-satunya hal yang berguna dari sebuah hasil pencarian.
+  const terlihat = hasil ?? urutkan(percakapan, urutan);
 
   /**
    * Ganti nama dan hapus, keduanya OPTIMISTIS: daftar diperbarui lebih dulu,
@@ -156,17 +188,12 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
 
   async function semat(id: string, disemat: boolean) {
     const sebelum = percakapan;
-    // Diurutkan ulang di klien dengan aturan yang SAMA seperti SQL-nya
-    // (disemat dulu, lalu waktu). Kalau tidak, barisnya berubah tanda tapi
-    // tetap di tempatnya sampai halaman dimuat ulang — dan seluruh gunanya
-    // menyematkan adalah memindahkannya ke atas.
-    setPercakapan((d) =>
-      [...d.map((p) => (p.id === id ? { ...p, disemat } : p))].sort(
-        (a, b) =>
-          Number(b.disemat ?? false) - Number(a.disemat ?? false) ||
-          b.diperbarui - a.diperbarui,
-      ),
-    );
+    // TIDAK diurutkan ulang di sini. Urutannya diturunkan dari state saat
+    // render lewat urutkan(), jadi menandai tersemat sudah cukup untuk
+    // memindahkan barisnya ke atas. Mengurutkan lagi di sini justru salah:
+    // aturannya dulu dipatok "disemat lalu waktu", dan itu akan melawan
+    // pilihan "Judul A-Z".
+    setPercakapan((d) => d.map((p) => (p.id === id ? { ...p, disemat } : p)));
     try {
       const r = await fetch("/api/percakapan", {
         method: "PATCH",
@@ -207,7 +234,12 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
           backgroundImage: "var(--kabut-dalam)",
         }}
       >
-        {/* Toggle mode — pill tersegmen di paling atas */}
+        {/* Toggle mode -- pill tersegmen di paling atas.
+
+            Menyetel jalur AWAL obrolan baru, bukan mengunci apa pun: pemilih
+            jalur di komposer tetap berkuasa per pesan. Judulnya menyebutkan
+            itu, karena toggle sebesar ini di tempat sepenting ini akan
+            ditebak orang sebagai sakelar yang mengunci. */}
         <div className="p-3">
           <div
             className="flex rounded-[var(--radius)] p-0.5"
@@ -217,6 +249,12 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
               <button
                 key={m}
                 onClick={() => setMode(m)}
+                aria-pressed={mode === m}
+                title={
+                  m === "obrolan"
+                    ? "Obrolan baru mulai di jalur Cepat"
+                    : "Obrolan baru mulai di jalur Kode"
+                }
                 className="flex-1 rounded-[var(--radius-kecil)] px-3 py-1.5 text-[13px] transition"
                 style={
                   mode === m
@@ -289,7 +327,7 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
             style={{ color: "var(--redup)" }}
           >
             <span>Obrolan</span>
-            <IkonUrut ukuran={13} className="cursor-pointer transition hover:brightness-150" />
+            <MenuUrut urutan={urutan} onGanti={setUrutan} />
           </div>
 
           {/* Pencarian mencari di JUDUL DAN ISI PESAN. Mencari judul saja

@@ -20,6 +20,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { PemilihJalur, type Jalur } from "@/components/chat/PemilihJalur";
+import { useJalurAwal } from "@/components/JalurAwal";
 import { PengukurKedalaman } from "@/components/chat/PengukurKedalaman";
 import { SaljuLaut } from "@/components/chat/SaljuLaut";
 import { Sonar } from "@/components/chat/Sonar";
@@ -156,6 +157,7 @@ function KerangkaObrolan() {
 
 function IsiObrolan() {
   const [jalur, setJalur] = useState<Jalur>("cepat");
+  const { jalurAwal, siap: jalurSiap } = useJalurAwal();
   const [pesan, setPesan] = useState<Balasan[]>([]);
   const [teks, setTeks] = useState("");
   const [sibuk, setSibuk] = useState(false);
@@ -183,6 +185,25 @@ function IsiObrolan() {
   const pembatal = useRef<AbortController | null>(null);
   const router = useRouter();
   const paramCari = useSearchParams();
+
+  /**
+   * Jalur awal dari toggle sidebar, HANYA selama obrolan masih kosong.
+   *
+   * Tiga sifat yang semuanya disengaja:
+   *
+   * - Mengubah toggle langsung memindahkan komposer di layar kosong, jadi
+   *   toggle-nya terasa hidup, bukan baru berlaku entah kapan.
+   * - Begitu ada satu pesan, jalur tidak pernah disentuh lagi. Jalur yang
+   *   berpindah sendiri di tengah percakapan mengubah arti pertanyaan
+   *   berikutnya tanpa ada yang memintanya.
+   * - Memilih jalur sendiri di komposer TIDAK tertimpa: efek ini hanya
+   *   berjalan saat salah satu ketergantungannya berubah, dan memilih di
+   *   komposer tidak mengubah satu pun dari ketiganya.
+   */
+  useEffect(() => {
+    if (!jalurSiap || pesan.length > 0) return;
+    setJalur(jalurAwal);
+  }, [jalurSiap, jalurAwal, pesan.length]);
 
   const untukEkspor = () =>
     pesan.map((p) => ({
