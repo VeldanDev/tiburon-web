@@ -19,6 +19,10 @@ import type { DatabaseSync } from "node:sqlite";
 const TAMBAHAN: { tabel: string; kolom: string; definisi: string }[] = [
   { tabel: "percakapan", kolom: "disemat", definisi: "INTEGER NOT NULL DEFAULT 0" },
   { tabel: "percakapan", kolom: "proyek_id", definisi: "TEXT" },
+  // NULL berarti "tidak tercatat", bukan "tidak ada model". Seluruh pesan
+  // yang sudah ada sebelum kolom ini bernilai NULL, dan statistik model
+  // harus menghitungnya sebagai tidak diketahui -- bukan mengarangnya.
+  { tabel: "pesan", kolom: "model", definisi: "TEXT" },
 ];
 
 export function siapkanSkema(db: DatabaseSync): void {
@@ -38,7 +42,8 @@ export function siapkanSkema(db: DatabaseSync): void {
       percakapan_id TEXT NOT NULL,
       peran TEXT NOT NULL,
       isi TEXT NOT NULL,
-      waktu INTEGER NOT NULL
+      waktu INTEGER NOT NULL,
+      model TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_pesan_percakapan ON pesan(percakapan_id, id);
 

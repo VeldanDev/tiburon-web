@@ -83,6 +83,55 @@ function PetaPanas({ harian }: { harian: Statistik["harian"] }) {
   );
 }
 
+/**
+ * Batang mendatar per model.
+ *
+ * Diskalakan terhadap yang TERBANYAK, bukan terhadap total. Yang ditanyakan
+ * orang pada daftar seperti ini adalah "mana yang paling sering", dan skala
+ * relatif menjawabnya dalam sekali lihat; skala terhadap total membuat semua
+ * batang pendek begitu modelnya lebih dari dua.
+ */
+function BatangModel({ daftar }: { daftar: Statistik["modelTeratas"] }) {
+  const puncak = Math.max(1, ...daftar.map((m) => m.jumlah));
+  return (
+    <div className="space-y-1.5">
+      {daftar.map((m) => (
+        <div key={m.nama} className="flex items-center gap-2.5">
+          {/* Nama model panjang dan penuh garis miring. Dipotong dari KIRI
+              lewat direction rtl akan mengacak tanda bacanya, jadi dipotong
+              biasa: bagian penting nama model ada di depan. */}
+          <span
+            className="min-w-0 flex-1 truncate text-[12px]"
+            title={m.nama}
+            style={{ color: "var(--teks-kedua)" }}
+          >
+            {m.nama}
+          </span>
+          <span
+            aria-hidden
+            className="h-[6px] w-[84px] shrink-0 overflow-hidden rounded-full"
+            style={{ background: "var(--sorot-lemah)" }}
+          >
+            <span
+              className="block h-full rounded-full"
+              style={{
+                width: `${Math.max(6, (m.jumlah / puncak) * 100)}%`,
+                background: "var(--surface)",
+              }}
+            />
+          </span>
+          <span
+            className="angka w-[42px] shrink-0 text-right text-[11px]"
+            style={{ color: "var(--teks-redup)" }}
+          >
+            {ringkas(m.jumlah)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function KartuStatistik() {
   const [data, setData] = useState<Data | null>(null);
 
@@ -124,6 +173,24 @@ export function KartuStatistik() {
       </div>
 
       <PetaPanas harian={data.harian} />
+
+      {/* Muncul hanya setelah ada jawaban yang modelnya benar-benar tercatat.
+          Blok kosong berlabel "Dijawab oleh" terbaca seperti fitur rusak, dan
+          riwayat lama memang tidak punya kolom ini. */}
+      {data.modelTeratas.length > 0 && (
+        <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--garis)" }}>
+          <div className="mb-2 text-[11px]" style={{ color: "var(--teks-redup)" }}>
+            Dijawab oleh
+          </div>
+          <BatangModel daftar={data.modelTeratas} />
+          {data.jawabanTanpaModel > 0 && (
+            <p className="mt-2 text-[10.5px]" style={{ color: "var(--teks-redup)" }}>
+              {data.jawabanTanpaModel.toLocaleString("id-ID")} jawaban lebih lama
+              tersimpan sebelum modelnya ikut dicatat, jadi tidak masuk hitungan ini.
+            </p>
+          )}
+        </div>
+      )}
 
       {data.pembanding && (
         <p className="mt-2 text-[11px]" style={{ color: "var(--teks-redup)" }}>

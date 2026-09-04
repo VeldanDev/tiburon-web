@@ -195,7 +195,12 @@ function IsiObrolan() {
       for (const p of pesan) {
         await fetch("/api/percakapan", {
           method: "PUT",
-          body: JSON.stringify({ id, pesan: { role: p.peran, content: p.isi } }),
+          // Model ikut disalin: cabang yang kehilangan atribusi jawabannya jadi
+          // riwayat yang tidak bisa ditelusuri balik ke model mana pun.
+          body: JSON.stringify({
+            id,
+            pesan: { role: p.peran, content: p.isi, model: p.model },
+          }),
         });
       }
       router.push(`/app?id=${id}`);
@@ -361,10 +366,20 @@ function IsiObrolan() {
         if (ketemu) setJudul(ketemu.judul);
         const rp = await fetch(`/api/percakapan?id=${id}`);
         if (!rp.ok) throw new Error(`isi percakapan: HTTP ${rp.status}`);
-        const lama: { role: string; content: string }[] = await rp.json();
+        const lama: { role: string; content: string; model?: string | null }[] =
+          await rp.json();
         if (dibatalkan) return;
         setIdPercakapan(id);
-        setPesan(lama.map((p) => ({ peran: p.role as "user" | "assistant", isi: p.content })));
+        setPesan(
+          lama.map((p) => ({
+            peran: p.role as "user" | "assistant",
+            isi: p.content,
+            // Lencana "dijawab oleh" ikut kembali setelah muat ulang. Sebelum
+            // kolomnya ada, nilai ini null di baris lama -- dan lencana yang
+            // tidak muncul lebih jujur daripada lencana yang menebak.
+            model: p.model ?? undefined,
+          })),
+        );
       } catch (e) {
         if (!dibatalkan) {
           setGalatRiwayat(
@@ -399,11 +414,16 @@ function IsiObrolan() {
     }
   }
 
-  function simpan(id: string | null, role: "user" | "assistant", content: string) {
+  function simpan(
+    id: string | null,
+    role: "user" | "assistant",
+    content: string,
+    model: string | null = null,
+  ) {
     if (!id) return;
     void fetch("/api/percakapan", {
       method: "PUT",
-      body: JSON.stringify({ id, pesan: { role, content } }),
+      body: JSON.stringify({ id, pesan: { role, content, model } }),
     }).catch(() => {});
   }
 
@@ -652,12 +672,20 @@ function IsiObrolan() {
       }
 
       setPesan((lama) => {
-        const isi = lama
-          .slice(awal)
+        const balasan = lama.slice(awal);
+        const isi = balasan
           .map((b) => (b.kolom ? `[${b.kolom}] ${b.isi}` : b.isi))
           .filter(Boolean)
           .join("\n\n");
-        if (isi) simpan(id, "assistant", isi);
+
+        // Satu baris tersimpan punya SATU kolom model. Mode banding menyatukan
+        // dua jawaban jadi satu baris, dan kalau kedua kolomnya dijawab model
+        // yang berbeda, tidak ada satu nama yang benar untuk baris itu -- maka
+        // dicatat null, bukan diambil salah satunya. Angka statistik yang kurang
+        // satu lebih baik daripada angka yang mengaku tahu padahal tidak.
+        const dipakai = [...new Set(balasan.map((b) => b.model).filter(Boolean))];
+
+        if (isi) simpan(id, "assistant", isi, dipakai.length === 1 ? dipakai[0]! : null);
         return lama;
       });
     } finally {

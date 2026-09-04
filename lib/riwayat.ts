@@ -62,26 +62,48 @@ export function buatPercakapan(judul: string, dbPath = dbRiwayat()): string {
   }
 }
 
-export function tambahPesan(id: string, pesan: Pesan, dbPath = dbRiwayat()): void {
+/**
+ * Pesan sebagaimana DISIMPAN — `Pesan` ditambah model yang menjawabnya.
+ *
+ * Sengaja tipe tersendiri, bukan kolom baru di `Pesan`. `Pesan` dikirim apa
+ * adanya ke penyedia (`messages: pesan` di lib/penyedia.ts), jadi menambahkan
+ * kolom di sana berarti mengirimkan medan tak dikenal ke API model di setiap
+ * permintaan. Yang perlu tahu soal model hanyalah lapisan basis data.
+ */
+export type PesanTersimpan = Pesan & { model?: string | null };
+
+export function tambahPesan(id: string, pesan: PesanTersimpan, dbPath = dbRiwayat()): void {
   const db = buka(dbPath);
   try {
     const now = Date.now();
-    db.prepare("INSERT INTO pesan (percakapan_id, peran, isi, waktu) VALUES (?,?,?,?)")
-      .run(id, pesan.role, pesan.content, now);
+    db.prepare("INSERT INTO pesan (percakapan_id, peran, isi, waktu, model) VALUES (?,?,?,?,?)")
+      // Pesan pengguna tidak pernah punya model. Menyimpan model yang sedang
+      // dipilih di sana akan membuat statistik menghitung tiap pertanyaan
+      // sebagai satu jawaban dari model itu -- dua kali lipat, dan salah.
+      .run(id, pesan.role, pesan.content, now, pesan.role === "assistant" ? (pesan.model ?? null) : null);
     db.prepare("UPDATE percakapan SET diperbarui = ? WHERE id = ?").run(now, id);
   } finally {
     db.close();
   }
 }
 
-export function ambilPercakapan(id: string, dbPath = dbRiwayat()): Pesan[] {
+/**
+ * Isi satu percakapan, untuk DITAMPILKAN.
+ *
+ * Model ikut terbawa supaya lencana "dijawab oleh" bertahan setelah halaman
+ * dimuat ulang; sebelumnya nilai itu cuma hidup di memori klien dan hilang
+ * begitu tabnya disegarkan. Aman karena hasil fungsi ini hanya pernah pergi ke
+ * browser — saat mengirim giliran berikutnya, klien menyusun ulang
+ * {role, content} sendiri, jadi `model` tidak pernah ikut ke API model.
+ */
+export function ambilPercakapan(id: string, dbPath = dbRiwayat()): PesanTersimpan[] {
   const db = buka(dbPath);
   try {
-    return db.prepare("SELECT peran, isi FROM pesan WHERE percakapan_id = ? ORDER BY id")
+    return db.prepare("SELECT peran, isi, model FROM pesan WHERE percakapan_id = ? ORDER BY id")
       .all(id)
       .map((r) => {
-        const row = r as { peran: string; isi: string };
-        return { role: row.peran as Pesan["role"], content: row.isi };
+        const row = r as { peran: string; isi: string; model: string | null };
+        return { role: row.peran as Pesan["role"], content: row.isi, model: row.model };
       });
   } finally {
     db.close();
