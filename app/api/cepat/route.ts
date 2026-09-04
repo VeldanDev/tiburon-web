@@ -1,7 +1,8 @@
 // node:sqlite tidak jalan di Edge runtime.
 export const runtime = "nodejs";
 
-import { cari, periksaSkema, type PotonganKorpus } from "@/lib/korpus";
+import { namaAkhir, petaLabel } from "@/lib/label-berkas";
+import { daftarBerkas, cari, periksaSkema, type PotonganKorpus } from "@/lib/korpus";
 import { kirim, type Pesan } from "@/lib/penyedia";
 import { ambilPengaturan } from "@/lib/pengaturan";
 import { instruksiUntukPercakapan } from "@/lib/proyek";
@@ -76,9 +77,28 @@ export async function POST(req: Request) {
           // mulai reindex, lalu cari() dipanggil dan tabelnya sudah hilang.
           try {
             konteks = cari(terakhir?.content ?? "", 8);
+            // Sumber disebut dengan LABEL UNIK, bukan nama berkas. Korpus ini
+            // berisi tiga berkas bernama 2026-09-03.md di folder berbeda;
+            // menyebut namanya saja menghasilkan sumber yang tidak bisa
+            // ditelusuri -- dan `new Set` di sini dulu bahkan MELEBUR ketiganya
+            // jadi satu entri, jadi dua sumber berbeda tampil sebagai satu.
+            // Dihitung di try-nya SENDIRI. Daftar berkas dibaca dari tabel lain,
+            // dan kegagalannya tidak boleh menghapus daftar sumber yang sudah
+            // berhasil dikumpulkan cari() -- itu menukar satu cacat kecil (label
+            // kurang tepat) dengan cacat besar (sumbernya hilang sama sekali).
+            let label = new Map<string, string>();
+            try {
+              label = petaLabel(daftarBerkas().map((b) => b.path));
+            } catch {
+              // Cadangannya nama berkas, seperti sebelumnya.
+            }
             kontrol.enqueue(baris({
               jenis: "sumber",
-              berkas: [...new Set(konteks.map((k) => k.path.split(/[\\/]/).pop()!))],
+              berkas: [
+                ...new Set(
+                  konteks.map((k) => label.get(k.path) ?? namaAkhir(k.path)),
+                ),
+              ],
             }));
           } catch (e) {
             konteks = [];

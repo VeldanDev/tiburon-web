@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { catatSumber, ringkasSumber } from "@/lib/sumber-terpakai";
 import { daftarBerkas, periksaSkema } from "@/lib/korpus";
+import { petaLabel } from "@/lib/label-berkas";
 
 /**
  * GET  — ringkasan berkas korpus yang pernah menjawab, DAN yang belum pernah.
@@ -24,9 +25,14 @@ export async function GET() {
     });
   }
 
-  const semua = daftarBerkas().map((b) => ({
-    berkas: b.path.split(/[\\/]/).pop() ?? b.path,
-    potongan: b.potongan,
+  // Label unik, bukan nama berkas. Tiga berkas bernama 2026-09-03.md dulu
+  // muncul sebagai tiga baris identik di sini, dan keluhan React soal kunci
+  // ganda adalah satu-satunya tanda yang terlihat dari luar.
+  const jalurKorpus = daftarBerkas();
+  const label = petaLabel(jalurKorpus.map((x) => x.path));
+  const semua = jalurKorpus.map((x) => ({
+    berkas: label.get(x.path) ?? x.path,
+    potongan: x.potongan,
   }));
   const namaTerpakai = new Set(terpakai.map((t) => t.berkas));
 

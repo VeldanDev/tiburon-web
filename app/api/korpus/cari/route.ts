@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
-import { cari, periksaSkema, type PotonganKorpus } from "@/lib/korpus";
+import { cari, daftarBerkas, periksaSkema, type PotonganKorpus } from "@/lib/korpus";
+import { cocokJalur, petaLabel } from "@/lib/label-berkas";
 
 /**
  * Pencarian korpus tanpa menyentuh model sama sekali.
@@ -33,17 +34,21 @@ export async function GET(req: Request) {
 
   try {
     let potongan: PotonganKorpus[] = cari(kueri, batas);
+    const labelKorpus = petaLabel(daftarBerkas().map((x) => x.path));
 
     // Saat sebuah kartu sumber dibuka, hanya potongan dari berkas itu yang
     // diminta — pengguna sedang memeriksa satu sumber, bukan menelusuri semua.
     if (berkas) {
-      potongan = potongan.filter((p) => p.path.split(/[\\/]/).pop() === berkas);
+      // Dicocokkan per RUAS jalur, bukan nama berkas: membandingkan nama saja
+      // membuka potongan dari SEMUA berkas yang kebetulan senama, lalu
+      // menyajikannya sebagai isi satu sumber.
+      potongan = potongan.filter((p) => cocokJalur(p.path, berkas));
     }
 
     return Response.json({
       jumlah: potongan.length,
       potongan: potongan.map((p) => ({
-        berkas: p.path.split(/[\\/]/).pop() ?? p.path,
+        berkas: labelKorpus.get(p.path) ?? p.path,
         jalur: p.path,
         teks: p.teks.slice(0, 1200),
         skor: p.skor,

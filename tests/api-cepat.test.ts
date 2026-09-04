@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/korpus", () => ({
   periksaSkema: vi.fn(() => ({ cocok: true })),
   cari: vi.fn(() => [{ path: "D:/x/buku.md", teks: "isi buku", skor: -1 }]),
+  // Dipakai untuk menghitung label sumber yang unik. Tanpa ini rutenya
+  // melempar dan daftar sumbernya diganti peringatan -- persis kegagalan
+  // yang ditangkap uji ini saat labelnya pertama dipasang.
+  daftarBerkas: vi.fn(() => [{ path: "D:/x/buku.md", potongan: 3 }]),
   dbBawaan: vi.fn(() => "x"),
 }));
 
