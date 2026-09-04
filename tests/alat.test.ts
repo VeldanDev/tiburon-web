@@ -112,3 +112,38 @@ describe("ringkasPanggilan", () => {
     expect(adaAlat("hantu")).toBe(false);
   });
 });
+
+describe("berkas senama di korpus", () => {
+  // Korpus Veldan berisi tiga berkas bernama 2026-09-03.md di folder berbeda.
+  // Model tidak punya apa pun selain teks hasil alat untuk membedakannya:
+  // kalau ketiganya disebut dengan nama yang sama, kutipannya tidak bisa
+  // ditelusuri dan daftar berkasnya terbaca seperti alat yang rusak.
+  const BENTROK = [
+    { path: "memory/dreaming/light/2026-09-03.md", potongan: 9 },
+    { path: "memory/dreaming/deep/2026-09-03.md", potongan: 1 },
+    { path: "memory/dreaming/rem/2026-09-03.md", potongan: 1 },
+    { path: "MEMORY.md", potongan: 17 },
+  ];
+
+  it("daftar_berkas_korpus menyebut tiap berkas dengan nama berbeda", () => {
+    vi.mocked(korpus.daftarBerkas).mockReturnValueOnce(BENTROK);
+    const keluar = jalankanAlat("daftar_berkas_korpus", "{}");
+    const baris = keluar.trim().split("\n");
+
+    expect(baris).toHaveLength(4);
+    expect(new Set(baris).size).toBe(4);
+    // Yang tidak bentrok tetap pendek: label ditambah hanya saat perlu.
+    expect(keluar).toContain("MEMORY.md (17 potongan)");
+    expect(keluar).toContain("light/2026-09-03.md");
+    expect(keluar).toContain("rem/2026-09-03.md");
+  });
+
+  it("cari_korpus mengutip berkas yang bisa ditelusuri", () => {
+    vi.mocked(korpus.daftarBerkas).mockReturnValueOnce(BENTROK);
+    vi.mocked(korpus.cari).mockReturnValueOnce([
+      { path: "memory/dreaming/rem/2026-09-03.md", teks: "isi mimpi", skor: 1 },
+    ]);
+    const keluar = jalankanAlat("cari_korpus", '{"kueri":"mimpi"}');
+    expect(keluar).toContain("[rem/2026-09-03.md]");
+  });
+});

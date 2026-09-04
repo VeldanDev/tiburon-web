@@ -29,6 +29,7 @@
  *    menjawab.
  */
 import { cari, periksaSkema, daftarBerkas } from "@/lib/korpus";
+import { petaLabel } from "@/lib/label-berkas";
 import { bacaRadar } from "@/lib/radar-parser";
 import { ringkasSumber } from "@/lib/sumber-terpakai";
 
@@ -87,10 +88,15 @@ const DAFTAR: Alat[] = [
 
       try {
         const hasil = cari(kueri, 6);
+        // Label unik, bukan nama berkas. Korpus ini berisi tiga berkas
+        // bernama 2026-09-03.md di folder berbeda; menyebut namanya saja
+        // membuat model mengutip sumber yang tidak bisa ditelusuri, dan ia
+        // sendiri tidak punya cara membedakan ketiganya.
+        const label = petaLabel(daftarBerkas().map((x) => x.path));
         if (hasil.length === 0) return `Tidak ada yang cocok dengan "${kueri}" di korpus.`;
         return hasil
           .map((h) => {
-            const nama = h.path.split(/[\\/]/).pop() ?? h.path;
+            const nama = label.get(h.path) ?? h.path;
             // Dipotong 700 karakter per potongan: enam potongan penuh bisa
             // memakan seluruh sisa jendela konteks, dan giliran berikutnya
             // gagal sebelum model sempat menjawab apa pun.
@@ -120,9 +126,12 @@ const DAFTAR: Alat[] = [
       if (!skema.cocok) return `Korpus tidak terbaca: ${skema.alasan}`;
       try {
         const b = daftarBerkas();
+        // Tanpa label, tiga berkas senama tampil sebagai tiga baris identik --
+        // daftar yang terbaca seperti alat yang rusak.
+        const label = petaLabel(b.map((x) => x.path));
         if (b.length === 0) return "Korpus kosong.";
         return b
-          .map((x) => `${x.path.split(/[\\/]/).pop()} (${x.potongan} potongan)`)
+          .map((x) => `${label.get(x.path) ?? x.path} (${x.potongan} potongan)`)
           .join("\n");
       } catch (e) {
         return `Daftar korpus gagal dibaca: ${(e as Error).message}`;
