@@ -403,7 +403,28 @@ function Kerangka({ children }: { children: React.ReactNode }) {
         <MenuAkun />
       </aside>
 
-      <main className="min-w-0 flex-1">{children}</main>
+      {/*
+        Kerangka yang MEMILIKI gulirnya, bukan tiap halaman sendiri-sendiri.
+
+        Tanpa overflow di sini, halaman yang lebih tinggi dari layar meluber
+        keluar dan yang menggulir jadi seluruh dokumen -- termasuk sidebar,
+        yang tersapu keluar layar bersama isinya. Radar menyeretnya 7.174
+        piksel; papan desain 3.181. Empat halaman lain kebetulan selamat
+        karena masing-masing membungkus dirinya sendiri dengan
+        `h-screen overflow-y-auto`, dan "kebetulan tiap halaman ingat"
+        bukan jaminan -- halaman berikutnya akan lupa lagi.
+
+        Halaman yang sudah mengurus gulirnya sendiri tetap benar: tingginya
+        pas satu layar, jadi tidak ada gulir kedua yang tumpang tindih.
+        Dan `relative` bukan hiasan: elemen `position: absolute` yang tidak
+        punya leluhur berposisi memakai DOKUMEN sebagai blok penampungnya,
+        jadi ia lolos dari kliping overflow di sini. Satu <span class="sr-only">
+        di dalam papan desain -- selebar 1 piksel, untuk pembaca layar --
+        memanjangkan dokumen 1.030 piksel karenanya, dan sidebar ikut
+        tersapu. Dengan `relative`, main jadi penampungnya dan semuanya
+        terklip di dalam.
+      */}
+      <main className="relative min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }
