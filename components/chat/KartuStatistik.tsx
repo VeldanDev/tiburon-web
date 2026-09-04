@@ -151,7 +151,13 @@ export function KartuStatistik() {
 
   // Belum ada apa-apa untuk diringkas. Kartu berisi nol di semua kolom pada
   // pemakaian pertama terbaca seperti kegagalan, bukan seperti awal.
-  if (!data || data.pesan === 0) return null;
+  //
+  // Bentuknya DIPERIKSA, bukan dipercaya: rute yang membalas galat mengirim
+  // { pesan } dan bukan angka, dan `data.pesan === 0` meloloskan itu -- lalu
+  // ringkas() melempar di tengah render dan seluruh layar kosong ikut mati.
+  // Hiasan yang gagal tidak boleh menjatuhkan halaman yang menampungnya.
+  if (!data || typeof data.pesan !== "number" || data.pesan === 0) return null;
+  if (!Array.isArray(data.harian) || !Array.isArray(data.modelTeratas)) return null;
 
   const jam =
     data.jamPuncak === null ? "—" : `${String(data.jamPuncak).padStart(2, "0")}.00`;
