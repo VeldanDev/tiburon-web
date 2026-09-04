@@ -18,15 +18,16 @@ import { HARI_PETA, type Statistik } from "@/lib/statistik-bentuk";
 export { HARI_PETA, type Statistik };
 
 /*
- * TIDAK ADA "model favorit" di sini, walau aplikasi rujukan punya.
+ * Model yang menjawab dihitung dari kolom `pesan.model`, yang ditambahkan
+ * setelah tabelnya dipakai berbulan-bulan. Semua baris yang lebih tua dari
+ * kolom itu bernilai NULL, dan itu TIDAK dianggap nol — jumlahnya dibawa
+ * keluar sebagai `jawabanTanpaModel` supaya daftarnya tidak diam-diam
+ * mengaku menghitung seluruh riwayat.
  *
- * Tabel `pesan` tidak mencatat model mana yang menjawab — nilainya cuma hidup
- * di memori klien selama percakapan berlangsung. Menambah kolomnya sekarang
- * berarti statistik itu kosong sampai berbulan-bulan ke depan, dan angka yang
- * selalu kosong lebih buruk daripada angka yang tidak ada: ia terlihat seperti
- * fitur yang rusak. Kalau nanti kolomnya ditambahkan dan sudah terisi, ini
- * tempat menghitungnya.
+ * Hanya baris `assistant` yang dihitung. Pertanyaan pengguna tidak dijawab
+ * model mana pun, dan menghitungnya akan melipatduakan tiap angka.
  */
+const MODEL_DITAMPILKAN = 3;
 
 function dbStat(): string {
   return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
@@ -94,19 +95,33 @@ export function hitungStatistik(dbPath = dbStat(), sekarang = Date.now()): Stati
     const { np } = db.prepare("SELECT COUNT(*) AS np FROM percakapan").get() as { np: number };
 
     const baris = db
-      .prepare("SELECT isi, waktu FROM pesan ORDER BY waktu")
-      .all() as { isi: string; waktu: number }[];
+      .prepare("SELECT isi, waktu, peran, model FROM pesan ORDER BY waktu")
+      .all() as { isi: string; waktu: number; peran: string; model: string | null }[];
 
     const perHari = new Map<string, number>();
     const perJam = new Array(24).fill(0) as number[];
+    const perModel = new Map<string, number>();
     let token = 0;
+    let tanpaModel = 0;
 
     for (const b of baris) {
       token += Math.ceil(b.isi.length / 3.6);
       const h = hari(b.waktu);
       perHari.set(h, (perHari.get(h) ?? 0) + 1);
       perJam[new Date(b.waktu).getHours()]++;
+
+      if (b.peran !== "assistant") continue;
+      if (b.model) perModel.set(b.model, (perModel.get(b.model) ?? 0) + 1);
+      else tanpaModel++;
     }
+
+    const modelTeratas = [...perModel.entries()]
+      // Nama dipakai sebagai pemutus seri supaya urutannya tetap sama di dua
+      // pemuatan berturut-turut; daftar yang bertukar tempat sendiri terbaca
+      // seperti angkanya berubah padahal tidak.
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, MODEL_DITAMPILKAN)
+      .map(([nama, jumlah]) => ({ nama, jumlah }));
 
     const tanggalAktif = [...perHari.keys()].sort();
     const { kini, panjang } = hitungStreak(tanggalAktif, hari(sekarang));
@@ -128,6 +143,8 @@ export function hitungStatistik(dbPath = dbStat(), sekarang = Date.now()): Stati
       streakSaatIni: kini,
       streakTerpanjang: panjang,
       jamPuncak: baris.length ? perJam.indexOf(Math.max(...perJam)) : null,
+      modelTeratas,
+      jawabanTanpaModel: tanpaModel,
       harian,
     };
   } finally {

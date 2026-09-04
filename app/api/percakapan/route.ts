@@ -42,7 +42,7 @@ async function bacaObjek(req: Request): Promise<{ nilai?: Record<string, unknown
  *   GET  /api/percakapan          -> daftar ringkas, terbaru di atas
  *   GET  /api/percakapan?id=xxx   -> isi satu percakapan
  *   POST { judul }                -> buat percakapan, balas { id }
- *   PUT  { id, pesan }            -> tambah satu pesan
+ *   PUT  { id, pesan }            -> tambah satu pesan (pesan.model opsional)
  */
 export async function GET(req: Request) {
   const param = new URL(req.url).searchParams;
@@ -79,7 +79,7 @@ export async function PUT(req: Request) {
   if (galat) return galat;
 
   const { id, pesan } = badan as { id?: unknown; pesan?: unknown };
-  const isiPesan = pesan as { role?: unknown; content?: unknown } | undefined;
+  const isiPesan = pesan as { role?: unknown; content?: unknown; model?: unknown } | undefined;
   if (
     typeof id !== "string" ||
     typeof isiPesan?.role !== "string" ||
@@ -88,8 +88,19 @@ export async function PUT(req: Request) {
     return Response.json({ pesan: "Butuh id dan pesan{role,content}" }, { status: 400 });
   }
 
+  // `model` opsional, tapi kalau ADA ia harus string. Angka atau objek yang
+  // lolos ke sini akan tersimpan sebagai teks aneh dan muncul di daftar model
+  // terpakai selamanya -- kolom ini tidak pernah dibersihkan lagi.
+  if (isiPesan.model !== undefined && isiPesan.model !== null && typeof isiPesan.model !== "string") {
+    return Response.json({ pesan: "pesan.model harus string" }, { status: 400 });
+  }
+
   try {
-    tambahPesan(id, { role: isiPesan.role as "user" | "assistant", content: isiPesan.content });
+    tambahPesan(id, {
+      role: isiPesan.role as "user" | "assistant",
+      content: isiPesan.content,
+      model: typeof isiPesan.model === "string" ? isiPesan.model : null,
+    });
     return Response.json({ ok: true });
   } catch (e) {
     return Response.json({ pesan: `Gagal menyimpan pesan: ${(e as Error).message}` }, { status: 500 });

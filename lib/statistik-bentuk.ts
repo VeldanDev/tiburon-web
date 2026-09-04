@@ -20,6 +20,17 @@ export type Statistik = {
   streakTerpanjang: number;
   /** Jam 0–23 dengan pesan terbanyak, atau null kalau belum ada pesan. */
   jamPuncak: number | null;
+  /** Model yang paling sering menjawab, terbanyak dulu. Paling banyak tiga. */
+  modelTeratas: { nama: string; jumlah: number }[];
+  /**
+   * Jawaban yang modelnya TIDAK tercatat.
+   *
+   * Ditampilkan apa adanya, bukan disembunyikan. Kolom `model` baru ada
+   * belakangan, jadi semua jawaban sebelum itu bernilai NULL — dan daftar
+   * model yang diam-diam menghitung sebagian kecil riwayat akan terbaca
+   * seperti menghitung semuanya.
+   */
+  jawabanTanpaModel: number;
   /** Jumlah pesan per hari, HARI_PETA hari terakhir, untuk peta panas. */
   harian: { tanggal: string; jumlah: number }[];
 };
