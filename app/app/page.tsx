@@ -127,6 +127,27 @@ function SpandukPeringatan({ pesan }: { pesan: string }) {
   );
 }
 
+/**
+ * Kerangka isi percakapan, selama riwayatnya masih dimuat.
+ *
+ * Bukan layar sambutan, dan bukan layar kosong. Keduanya adalah PERNYATAAN
+ * -- "kamu belum punya obrolan" -- dan pernyataan itu belum tentu benar
+ * saat riwayatnya belum sampai.
+ */
+function KerangkaIsi() {
+  return (
+    <div aria-hidden className="space-y-4 pt-6">
+      {[62, 88, 45].map((lebar, i) => (
+        <div
+          key={i}
+          className="h-[13px] rounded-full"
+          style={{ width: `${lebar}%`, background: "var(--sorot-lemah)" }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function HalamanObrolan() {
   return (
     <Suspense fallback={<KerangkaObrolan />}>
@@ -163,6 +184,17 @@ function IsiObrolan() {
   const [sibuk, setSibuk] = useState(false);
   const [idPercakapan, setIdPercakapan] = useState<string | null>(null);
   const [galatRiwayat, setGalatRiwayat] = useState("");
+  /**
+   * "Belum dimuat" TIDAK sama dengan "memang kosong".
+   *
+   * Tanpa pembedaan ini, tiap muat ulang menampilkan layar sambutan penuh
+   * -- "Tiburon siap", chip saran, kartu statistik -- selama riwayatnya
+   * masih dalam perjalanan, lalu menggantinya dengan percakapan yang
+   * sesungguhnya. Sepersekian detik itu memberi tahu pemiliknya bahwa
+   * obrolannya tidak ada, tepat pada saat ia menekan F5 untuk memastikan
+   * obrolannya ada.
+   */
+  const [memuatRiwayat, setMemuatRiwayat] = useState(true);
   // Terpisah dari galatRiwayat supaya bisa DIBERSIHKAN saat penyimpanan
   // berikutnya berhasil. Gagal sekali karena jaringan tersendat lalu pulih
   // tidak boleh meninggalkan spanduk merah yang menetap selamanya.
@@ -185,6 +217,19 @@ function IsiObrolan() {
   const pembatal = useRef<AbortController | null>(null);
   const router = useRouter();
   const paramCari = useSearchParams();
+  /**
+   * Nilainya, bukan objeknya.
+   *
+   * Efek pemuat riwayat di bawah dulu bergantung pada `paramCari` sendiri,
+   * dan itu bergantung pada objek yang kebetulan stabil antar-render. Begitu
+   * efeknya menyetel keadaan tanpa syarat -- seperti "sedang memuat" --
+   * asumsi itu berubah jadi gelung tak berujung: setel keadaan, render,
+   * objek param baru, efek jalan lagi.
+   *
+   * String atau null dibandingkan menurut NILAI, jadi efeknya hanya berjalan
+   * saat percakapan yang dituju benar-benar berganti.
+   */
+  const idParam = paramCari.get("id");
 
   /**
    * Jalur awal dari toggle sidebar, HANYA selama obrolan masih kosong.
@@ -397,11 +442,12 @@ function IsiObrolan() {
 
   useEffect(() => {
     let dibatalkan = false;
+    setMemuatRiwayat(true);
     (async () => {
       try {
         // `?id=` dari sidebar menang. Tanpa ini, mengklik percakapan mana pun
         // di sidebar akan selalu membuka percakapan TERBARU, bukan yang diklik.
-        let id = paramCari.get("id");
+        let id = idParam;
         // Daftar tetap diambil walau id-nya sudah diketahui: judulnya ada di
         // sana, dan bilah atas butuh judul yang sebenarnya, bukan "Obrolan
         // baru" yang menempel selamanya.
@@ -438,6 +484,12 @@ function IsiObrolan() {
               `Percakapan lamamu masih tersimpan — muat ulang untuk mencoba lagi.`,
           );
         }
+      } finally {
+        // Di dalam finally, bukan di ujung try: ada dua `return` lebih awal
+        // di dalamnya (dibatalkan, dan daftar kosong), dan keduanya harus
+        // tetap mengakhiri keadaan memuat. Kalau tidak, pengguna baru yang
+        // belum punya obrolan akan menatap kerangka selamanya.
+        if (!dibatalkan) setMemuatRiwayat(false);
       }
     })();
     return () => {
@@ -446,7 +498,7 @@ function IsiObrolan() {
     // Dijalankan ulang tiap kali `?id=` berubah: berpindah percakapan lewat
     // sidebar tidak memuat ulang halaman, jadi tanpa ketergantungan ini isi
     // percakapan lama akan tetap terpampang di bawah judul yang baru.
-  }, [paramCari]);
+  }, [idParam]);
 
   async function pastikanPercakapan(judul: string): Promise<string | null> {
     if (idPercakapan) return idPercakapan;
@@ -782,6 +834,16 @@ function IsiObrolan() {
   }
 
   const kosong = pesan.length === 0;
+  /**
+   * Layar sambutan hanya untuk kosong yang SUNGGUHAN.
+   *
+   * Selama riwayat masih dimuat, bentuk layarnya mengikuti percakapan --
+   * kerangka di area gulir, komposer menempel di bawah -- bukan sambutan.
+   * Dengan begitu tidak ada satu pun elemen yang berpindah tempat saat
+   * isinya datang, dan tidak ada yang sempat menyatakan "belum ada obrolan"
+   * sebelum tahu apakah itu benar.
+   */
+  const sambutan = kosong && !memuatRiwayat;
   const semuaArtefak = artefakPercakapan(pesan);
 
   /**
@@ -920,7 +982,7 @@ function IsiObrolan() {
             void kirim();
           }
         }}
-        rows={kosong ? 2 : 1}
+        rows={sambutan ? 2 : 1}
         placeholder="Tanya apa saja, / untuk perintah"
         className="max-h-40 w-full resize-none bg-transparent px-3 py-2 text-[15px] outline-none"
         style={{ color: "var(--shell)" }}
@@ -1051,7 +1113,10 @@ function IsiObrolan() {
           {galatRiwayat && <SpandukPeringatan pesan={galatRiwayat} />}
           {galatSimpan && <SpandukPeringatan pesan={galatSimpan} />}
 
-          {kosong ? (
+          {/* Tiga keadaan, bukan dua: memuat, kosong sungguhan, dan berisi. */}
+          {kosong && memuatRiwayat ? (
+            <KerangkaIsi />
+          ) : sambutan ? (
             <div className="pt-[12vh]">
               {/* Sapaan serif besar -- gagasan dari Claude desktop. Serif di
                   tengah antarmuka monospace terasa disengaja, bukan kebetulan. */}
@@ -1180,8 +1245,11 @@ function IsiObrolan() {
           </div>
         </div>
 
-        {/* Saat sudah ada pesan, komposer menempel di bawah. */}
-        {!kosong && (
+        {/* Komposer menempel di bawah kecuali di layar sambutan, yang
+            menaruhnya di tengah. Termasuk selama memuat: kotak ketik yang
+            lenyap sekejap tiap muat ulang lebih mengganggu daripada
+            kerangka. */}
+        {!sambutan && (
           <div className="relative shrink-0 px-6 pb-6">
             {/* Tombol turun, tepat di atas komposer. Muncul HANYA saat
                 pengikutan mati -- kalau ia selalu ada, ia jadi tombol yang
