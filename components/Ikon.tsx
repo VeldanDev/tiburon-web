@@ -634,3 +634,29 @@ export function IkonBulan(p: Props) {
     />
   );
 }
+
+/**
+ * Ingatan — pelampung penanda, bukan otak atau bola lampu.
+ *
+ * Otak adalah ikon "AI" paling generik yang ada, dan salah artinya di sini:
+ * ingatan di Tiburon ditulis tangan, bukan disimpulkan. Pelampung adalah benda
+ * yang sengaja kamu jatuhkan supaya bisa menemukan tempat yang sama lagi —
+ * persis apa yang dilakukan baris ingatan.
+ */
+export function IkonPelampung(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M12 3.5v8" />
+          {/* Panji dengan takik: satu-satunya ujung tajam ikon ini. */}
+          <path d="M12.5 4h4.2l-1.7 1.6 1.7 1.6h-4.2" />
+          <path d="M7.5 15.5a4.5 4.5 0 0 1 9 0" />
+          <path d="M3 15.5h18" />
+          <path d="M6 19c2-1.2 4-1.2 6 0s4 1.2 6 0" />
+        </>
+      }
+    />
+  );
+}

@@ -16,6 +16,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BarisPercakapan, type Percakapan } from "@/components/BarisPercakapan";
 import { DaftarProyek, type Proyek } from "@/components/DaftarProyek";
+import { MenuAkun } from "@/components/MenuAkun";
 import {
   IkonBaru,
   IkonDesain,
@@ -361,26 +362,7 @@ export default function LayoutAplikasi({ children }: { children: React.ReactNode
           </div>
         )}
 
-        {/* Baris akun */}
-        <div
-          className="flex items-center gap-2.5 border-t px-4 py-3 text-[13px]"
-          style={{ borderColor: "var(--garis)" }}
-        >
-          <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] leading-none"
-            style={{ background: "var(--ocean)", color: "var(--shell)" }}
-          >
-            V
-          </span>
-          {/* min-w-0 pada pembungkus: tanpa itu nama panjang mendorong
-              baris melewati lebar sidebar, bukan terpotong di dalamnya. */}
-          <span className="min-w-0 flex-1 truncate" style={{ color: "var(--shell)" }}>
-            Veldan
-          </span>
-          <span className="shrink-0 text-[11px]" style={{ color: "var(--redup)" }}>
-            lokal
-          </span>
-        </div>
+        <MenuAkun />
       </aside>
 
       <main className="min-w-0 flex-1">{children}</main>
