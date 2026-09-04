@@ -21,6 +21,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { PemilihJalur, type Jalur } from "@/components/chat/PemilihJalur";
 import { useJalurAwal } from "@/components/JalurAwal";
+import { PETA_JALUR } from "@/lib/pintasan";
 import { PengukurKedalaman } from "@/components/chat/PengukurKedalaman";
 import { SaljuLaut } from "@/components/chat/SaljuLaut";
 import { Sonar } from "@/components/chat/Sonar";
@@ -408,13 +409,10 @@ function IsiObrolan() {
   useEffect(() => {
     function tekan(e: KeyboardEvent) {
       if (!e.ctrlKey && !e.metaKey) return;
-      const peta: Record<string, Jalur> = {
-        "1": "cepat",
-        "2": "tiburon",
-        "3": "agen",
-        "4": "kode",
-      };
-      const tujuan = peta[e.key];
+      // Peta yang SAMA dengan yang didaftar panel pintasan. Sebelumnya
+      // ditulis dua kali di dua berkas, dan panelnya mengklaim mustahil
+      // berbohong justru karena itu.
+      const tujuan = PETA_JALUR[e.key];
       if (!tujuan) return;
       e.preventDefault();
       setJalur(tujuan);

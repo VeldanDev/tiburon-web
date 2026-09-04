@@ -3,8 +3,8 @@
 /**
  * Daftar pintasan papan ketik.
  *
- * Dibuat dari SATU sumber data yang juga dipakai untuk mendaftarkan
- * pendengarnya, supaya panel ini tidak bisa perlahan berbohong. Panel pintasan
+ * Daftarnya datang dari lib/pintasan.ts, yang juga jadi sumber peta
+ * tombol yang didaftarkan layar obrolan. Panel pintasan
  * yang ditulis tangan terpisah dari kodenya selalu berakhir menyebut pintasan
  * yang sudah dihapus — dan itu lebih buruk daripada tidak punya panel sama
  * sekali.
@@ -15,18 +15,7 @@
 
 import { useEffect } from "react";
 import { IkonTutup } from "@/components/Ikon";
-
-export const PINTASAN: { tombol: string[]; arti: string }[] = [
-  { tombol: ["Enter"], arti: "Kirim pesan" },
-  { tombol: ["Shift", "Enter"], arti: "Baris baru" },
-  { tombol: ["Esc"], arti: "Hentikan jawaban yang sedang mengalir" },
-  { tombol: ["Ctrl", "1"], arti: "Jalur Cepat — permukaan, tanpa korpus" },
-  { tombol: ["Ctrl", "2"], arti: "Jalur Tiburon — membaca korpusmu" },
-  { tombol: ["Ctrl", "3"], arti: "Jalur Agen — mencari sendiri berkali-kali" },
-  { tombol: ["Ctrl", "4"], arti: "Jalur Kode — paling dalam" },
-  { tombol: ["/"], arti: "Buka menu perintah" },
-  { tombol: ["?"], arti: "Buka daftar ini" },
-];
+import { PINTASAN } from "@/lib/pintasan";
 
 export function PanelPintasan({ onTutup }: { onTutup: () => void }) {
   useEffect(() => {
