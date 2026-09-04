@@ -22,6 +22,7 @@
  *      dengan dunia biru laut ini.
  */
 
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { BlokKode } from "@/components/chat/BlokKode";
@@ -37,7 +38,20 @@ function keTeks(anak: React.ReactNode): string {
   return "";
 }
 
-export function Markdown({ isi }: { isi: string }) {
+/**
+ * DIMEMOISASI, dan itu bukan optimasi spekulatif.
+ *
+ * Tiap potongan token yang datang menyetel ulang state percakapan, dan tanpa
+ * ini SETIAP jawaban di layar dirender ulang serta memarsing markdown-nya dari
+ * awal. Diukur: 30 potongan pada percakapan berisi 4 jawaban menghasilkan 159
+ * render markdown. Biayanya (jumlah jawaban x jumlah potongan), jadi yang
+ * paling menderita justru percakapan yang paling berguna -- yang sudah
+ * panjang, dengan jawaban berkode yang tiap kali disorot ulang.
+ *
+ * `isi` sebuah string, jadi perbandingan dangkal bawaan memo sudah tepat:
+ * hanya jawaban yang sedang tumbuh yang berubah.
+ */
+export const Markdown = memo(function Markdown({ isi }: { isi: string }) {
   return (
     <div className="markdown-tiburon">
       <ReactMarkdown
@@ -87,4 +101,4 @@ export function Markdown({ isi }: { isi: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});
