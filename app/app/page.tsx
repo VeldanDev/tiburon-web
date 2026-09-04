@@ -105,6 +105,27 @@ function bacaKejadian(baris: string): KejadianAliran | null {
  * boundary"). Batasnya ditaruh di sini, di berkas halaman, supaya kerangka
  * aplikasi di layout tetap tampil seketika sementara isinya menyusul.
  */
+/**
+ * Spanduk peringatan sebaris.
+ *
+ * Dipakai dua kali dan sengaja tidak digabung jadi satu keadaan: riwayat
+ * yang gagal DIMUAT dan pesan yang gagal DISIMPAN adalah dua masalah
+ * berbeda yang bisa terjadi bersamaan, dan yang satu tidak membatalkan
+ * yang lain.
+ */
+function SpandukPeringatan({ pesan }: { pesan: string }) {
+  return (
+    <div
+      role="alert"
+      className="mb-6 rounded-[var(--radius)] border px-4 py-3 text-[13px]"
+      style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
+    >
+      <IkonPeringatan ukuran={13} className="mr-1 inline-block align-[-2px]" />
+      {pesan}
+    </div>
+  );
+}
+
 export default function HalamanObrolan() {
   return (
     <Suspense fallback={<KerangkaObrolan />}>
@@ -140,6 +161,10 @@ function IsiObrolan() {
   const [sibuk, setSibuk] = useState(false);
   const [idPercakapan, setIdPercakapan] = useState<string | null>(null);
   const [galatRiwayat, setGalatRiwayat] = useState("");
+  // Terpisah dari galatRiwayat supaya bisa DIBERSIHKAN saat penyimpanan
+  // berikutnya berhasil. Gagal sekali karena jaringan tersendat lalu pulih
+  // tidak boleh meninggalkan spanduk merah yang menetap selamanya.
+  const [galatSimpan, setGalatSimpan] = useState("");
   const [mencariKorpus, setMencariKorpus] = useState(false);
   const [kuotaHabis, setKuotaHabis] = useState("");
   const [banding, setBanding] = useState(false);
@@ -193,7 +218,7 @@ function IsiObrolan() {
       // ditentukan oleh urutan penyisipan (kolom id AUTOINCREMENT), jadi
       // mengirimnya bersamaan bisa mengacak percakapan hasil salinannya.
       for (const p of pesan) {
-        await fetch("/api/percakapan", {
+        const rp = await fetch("/api/percakapan", {
           method: "PUT",
           // Model ikut disalin: cabang yang kehilangan atribusi jawabannya jadi
           // riwayat yang tidak bisa ditelusuri balik ke model mana pun.
@@ -202,6 +227,11 @@ function IsiObrolan() {
             pesan: { role: p.peran, content: p.isi, model: p.model },
           }),
         });
+        // Berhenti pada kegagalan PERTAMA, dan katakan. Melanjutkan gelung akan
+        // menghasilkan cabang yang bolong di tengah -- percakapan yang terlihat
+        // utuh tapi kehilangan satu giliran, dan itu tidak akan pernah
+        // ketahuan.
+        if (!rp.ok) throw new Error((await rp.json()).pesan ?? `HTTP ${rp.status}`);
       }
       router.push(`/app?id=${id}`);
     } catch (e) {
@@ -414,17 +444,46 @@ function IsiObrolan() {
     }
   }
 
-  function simpan(
+  /**
+   * Simpan satu pesan ke riwayat.
+   *
+   * TIDAK menelan kegagalan. Versi sebelumnya diakhiri `.catch(() => {})`,
+   * dan itu berarti penyimpanan yang gagal tidak meninggalkan jejak apa pun:
+   * percakapan terlihat baik-baik saja sampai halaman dimuat ulang, lalu
+   * kosong, tanpa satu pun petunjuk kapan atau kenapa. Riwayat yang hilang
+   * diam-diam lebih buruk daripada riwayat yang gagal dengan berisik.
+   *
+   * Tetap tidak ditunggu oleh pemanggilnya: jawaban yang sedang mengalir
+   * tidak boleh berhenti menunggu penulisan basis data.
+   */
+  async function simpan(
     id: string | null,
     role: "user" | "assistant",
     content: string,
     model: string | null = null,
   ) {
-    if (!id) return;
-    void fetch("/api/percakapan", {
-      method: "PUT",
-      body: JSON.stringify({ id, pesan: { role, content, model } }),
-    }).catch(() => {});
+    // id null berarti pembuatan percakapannya sendiri gagal, jadi TIDAK ADA
+    // satu pun pesan giliran ini yang tersimpan -- bukan cuma yang ini.
+    if (!id) {
+      setGalatSimpan(
+        "Percakapan ini gagal dibuat, jadi tidak ada pesannya yang tersimpan. " +
+          "Yang di layar masih bisa dibaca, tapi akan hilang saat halaman dimuat ulang.",
+      );
+      return;
+    }
+    try {
+      const r = await fetch("/api/percakapan", {
+        method: "PUT",
+        body: JSON.stringify({ id, pesan: { role, content, model } }),
+      });
+      if (!r.ok) throw new Error((await r.json()).pesan ?? `HTTP ${r.status}`);
+      setGalatSimpan("");
+    } catch (e) {
+      setGalatSimpan(
+        `Pesan tidak tersimpan: ${(e as Error).message}. ` +
+          `Yang di layar masih bisa dibaca, tapi akan hilang saat halaman dimuat ulang.`,
+      );
+    }
   }
 
   function jalankanPerintah(cmd: Perintah) {
@@ -656,7 +715,7 @@ function IsiObrolan() {
     }
 
     const id = await pastikanPercakapan(untukJudul);
-    simpan(id, "user", dikirim);
+    void simpan(id, "user", dikirim);
 
     const awal = riwayat.length;
     try {
@@ -671,7 +730,14 @@ function IsiObrolan() {
         await alirkan(jalur, awal, riwayat);
       }
 
+      // React boleh memanggil fungsi pembaru lebih dari sekali untuk satu
+      // pembaruan (mode ketat melakukannya di pengembangan). Tanpa penjaga
+      // ini, jawaban yang sama tersimpan dua kali -- dan riwayat ganda tidak
+      // pernah terlihat sampai percakapannya dibuka lagi.
+      let sudahDisimpan = false;
       setPesan((lama) => {
+        if (sudahDisimpan) return lama;
+        sudahDisimpan = true;
         const balasan = lama.slice(awal);
         const isi = balasan
           .map((b) => (b.kolom ? `[${b.kolom}] ${b.isi}` : b.isi))
@@ -685,7 +751,7 @@ function IsiObrolan() {
         // satu lebih baik daripada angka yang mengaku tahu padahal tidak.
         const dipakai = [...new Set(balasan.map((b) => b.model).filter(Boolean))];
 
-        if (isi) simpan(id, "assistant", isi, dipakai.length === 1 ? dipakai[0]! : null);
+        if (isi) void simpan(id, "assistant", isi, dipakai.length === 1 ? dipakai[0]! : null);
         return lama;
       });
     } finally {
@@ -961,16 +1027,8 @@ function IsiObrolan() {
             <SpandukKuota pesan={kuotaHabis} onTutup={() => setKuotaHabis("")} />
           )}
 
-          {galatRiwayat && (
-            <div
-              role="alert"
-              className="mb-6 rounded-[var(--radius)] border px-4 py-3 text-[13px]"
-              style={{ borderColor: "var(--warn)", color: "var(--warn)" }}
-            >
-              <IkonPeringatan ukuran={13} className="mr-1 inline-block align-[-2px]" />
-              {galatRiwayat}
-            </div>
-          )}
+          {galatRiwayat && <SpandukPeringatan pesan={galatRiwayat} />}
+          {galatSimpan && <SpandukPeringatan pesan={galatSimpan} />}
 
           {kosong ? (
             <div className="pt-[12vh]">
