@@ -28,7 +28,7 @@ import {
   IkonTiburon,
 } from "@/components/Ikon";
 import { PemilihTema } from "@/components/PemilihTema";
-import { PINTASAN } from "@/components/chat/PanelPintasan";
+import { PINTASAN } from "@/lib/pintasan";
 import { RANTAI_BAWAAN } from "@/lib/penyedia";
 import { jalurBagian, sahihBagian, type IdBagian } from "@/lib/bagian-pengaturan";
 

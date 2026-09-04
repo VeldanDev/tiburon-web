@@ -25,7 +25,10 @@ export type Perintah = {
 export const PERINTAH: Perintah[] = [
   {
     kunci: "/korpus",
-    ringkas: "Tanya korpus pribadimu — 164 berkas terindeks",
+    // Jumlah berkasnya TIDAK disebut di sini. Angka 164 sempat menetap
+    // berbulan-bulan sementara korpusnya berisi 8 berkas, dan menu ini
+    // tidak boleh memanggil API cuma untuk sebuah keterangan.
+    ringkas: "Tanya korpus pribadimu, jawabannya menyebut berkas sumbernya",
     jalur: "tiburon",
   },
   { kunci: "/cepat", ringkas: "Jawab tanpa menyentuh korpus", jalur: "cepat" },
