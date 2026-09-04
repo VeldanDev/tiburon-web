@@ -321,6 +321,21 @@ body {
   transform: rotate(90deg);
 }
 
+/* Panah yang BERBALIK, bukan berputar seperempat.
+ *
+ * Dipakai kontrol yang membuka ke arah berlawanan dari arah panahnya -- menu
+ * akun terbuka ke atas dari dasar sidebar. Rotasi 90 derajat di atas benar
+ * untuk panah menyamping yang jadi menunjuk ke bawah; ia salah di sini, karena
+ * panah bawah yang miring 90 derajat menunjuk ke samping, ke tempat yang tidak
+ * ada apa-apa. */
+.ikon-balik {
+  transition: transform var(--alih);
+}
+
+.ikon-balik-buka {
+  transform: rotate(180deg);
+}
+
 /* Sapuan sonar pada tanda Tiburon.
  *
  * Cuma dipakai di layar kosong -- satu tempat, dilihat sekali di awal sesi.
