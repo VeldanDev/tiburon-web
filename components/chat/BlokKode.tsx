@@ -21,7 +21,7 @@
  *    polos, dan itu hasil yang benar, bukan kegagalan.
  */
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { IkonSalin, IkonCentang } from "@/components/Ikon";
 import { useTema } from "@/components/PemilihTema";
 
@@ -117,7 +117,12 @@ function highlighter(): Promise<Penyorot> {
   return janjiHighlighter;
 }
 
-export function BlokKode({
+/**
+ * Ikut dimemoisasi: menyorot sintaks jauh lebih mahal daripada memarsing
+ * markdown, dan Shiki dijalankan ulang tiap kali komponennya dirender.
+ * Ketiga propnya primitif, jadi perbandingan dangkal sudah cukup.
+ */
+export const BlokKode = memo(function BlokKode({
   kode,
   bahasa,
   ringkas,
@@ -231,4 +236,4 @@ export function BlokKode({
       </div>
     </div>
   );
-}
+});

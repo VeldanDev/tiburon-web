@@ -63,14 +63,18 @@ export function PengukurKedalaman({ jalur }: { jalur: Jalur }) {
         />
       </div>
 
-      <span
-        className="angka text-[9px] leading-none"
-        style={{ color: "var(--surface)" }}
-      >
-        {aktif.meter}
-      </span>
-      <span className="text-[9px]" style={{ color: "var(--redup)" }}>
-        m
+      {/* Angka dan satuan dalam SATU baris.
+
+          Sebelumnya keduanya dua <span> berturut di dalam flex-col, jadi selalu
+          bertumpuk dengan jarak di antaranya: "0" di satu baris, "m" di baris
+          lain. Itu berhenti terbaca sebagai satu ukuran dan mulai terbaca
+          sebagai dua label — dan tidak ada instrumen yang memisahkan angka
+          dari satuannya. */}
+      <span className="flex items-baseline gap-[2px] text-[9px] leading-none">
+        <span className="angka" style={{ color: "var(--surface)" }}>
+          {aktif.meter}
+        </span>
+        <span style={{ color: "var(--redup)" }}>m</span>
       </span>
     </div>
   );
