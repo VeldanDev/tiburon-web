@@ -40,7 +40,7 @@ export type HasilEkstrak =
   | { ok: false; sebab: string };
 
 /** Ekstensi yang ditangani berkas ini — di luar berkas teks polos. */
-export const EKSTENSI_KANTOR = new Set(["pdf", "docx", "xlsx", "xlsm"]);
+export const EKSTENSI_KANTOR = new Set(["pdf", "docx", "xlsx", "xlsm", "xls", "csv", "tsv"]);
 
 /**
  * Ambang teks minimum sebelum sebuah PDF dianggap hasil pindai.
@@ -232,6 +232,105 @@ async function dariExcel(jalur: string): Promise<HasilEkstrak> {
 }
 
 /**
+ * Tebak pemisah kolom sebuah CSV.
+ *
+ * KENAPA DITEBAK, BUKAN DIPATOK KOMA. Excel berbahasa Indonesia menyimpan CSV
+ * dengan TITIK KOMA, karena koma sudah dipakai sebagai pemisah desimal.
+ * Ekspor kasir dan ekspor akuntansi lokal hampir selalu begitu. Pengurai yang
+ * memaksa koma akan membaca seluruh baris sebagai satu kolom raksasa — dan
+ * hasilnya berkas yang "berhasil" diindeks tapi tidak pernah menjawab apa pun.
+ *
+ * Ditebak dari BARIS JUDULNYA saja: pemisah yang benar adalah yang membelah
+ * baris pertama jadi paling banyak bagian.
+ */
+export function tebakPemisah(barisJudul: string): string {
+  const calon = [";", ",", "\t", "|"];
+  let terbaik = ",";
+  let terbanyak = 0;
+  for (const c of calon) {
+    const n = pecahBaris(barisJudul, c).length;
+    if (n > terbanyak) {
+      terbanyak = n;
+      terbaik = c;
+    }
+  }
+  return terbaik;
+}
+
+/**
+ * Pecah satu baris CSV, menghormati tanda kutip.
+ *
+ * Tanpa ini, alamat "Jl. Merdeka No. 5, Bandung" di dalam kutip akan terbelah
+ * jadi dua kolom dan menggeser seluruh kolom sesudahnya — kesalahan yang
+ * membuat harga barang muncul di kolom stok.
+ */
+export function pecahBaris(baris: string, pemisah: string): string[] {
+  const hasil: string[] = [];
+  let kini = "";
+  let dalamKutip = false;
+  for (let i = 0; i < baris.length; i++) {
+    const c = baris[i];
+    if (c === '"') {
+      // Dua kutip berturut-turut di dalam kutip berarti satu kutip literal.
+      if (dalamKutip && baris[i + 1] === '"') {
+        kini += '"';
+        i++;
+      } else {
+        dalamKutip = !dalamKutip;
+      }
+    } else if (c === pemisah && !dalamKutip) {
+      hasil.push(kini.trim());
+      kini = "";
+    } else {
+      kini += c;
+    }
+  }
+  hasil.push(kini.trim());
+  return hasil;
+}
+
+/**
+ * CSV diperlakukan seperti Excel: tiap baris jadi kalimat, bukan deretan nilai.
+ *
+ * Alasannya sama persis — "Aero Run;Biru;42;3;349000" tidak memuat satu pun
+ * kata yang akan diketik pelanggan.
+ */
+function dariCsv(mentah: string, pemisahPaksa?: string): HasilEkstrak {
+  // BOM dibuang: kalau tidak, judul kolom pertama jadi "﻿Produk" dan
+  // tidak akan pernah cocok dengan kata "Produk".
+  const teks = mentah.replace(/^\uFEFF/, "");
+  const baris = teks.split(/\r?\n/).filter((b) => b.trim() !== "");
+  if (!baris.length) return { ok: false, sebab: "berkas CSV ini kosong" };
+
+  const pemisah = pemisahPaksa ?? tebakPemisah(baris[0]);
+  const judul = pecahBaris(baris[0], pemisah).map((h, i) => h || `Kolom ${i + 1}`);
+
+  // Satu kolom saja berarti tebakannya meleset ATAU berkasnya memang bukan
+  // tabel. Dikembalikan apa adanya sebagai teks biasa, bukan dipaksa jadi
+  // kalimat "Kolom 1: seluruh baris" yang tidak menolong siapa pun.
+  if (judul.length < 2) return { ok: true, teks: rapikan(teks) };
+
+  const isi = baris.slice(1, 1 + BATAS_BARIS);
+  const kalimat = isi
+    .map((b) => {
+      const sel = pecahBaris(b, pemisah);
+      return judul
+        .map((h, i) => (sel[i] !== undefined && sel[i] !== "" ? `${h}: ${sel[i]}` : ""))
+        .filter(Boolean)
+        .join("; ");
+    })
+    .filter((x) => x.length > 0);
+
+  if (!kalimat.length) return { ok: false, sebab: "CSV ini hanya berisi judul kolom" };
+  const dipotong = baris.length - 1 - isi.length;
+  return {
+    ok: true,
+    teks: kalimat.join("\n"),
+    catatan: dipotong > 0 ? `${dipotong} baris tidak diindeks (batas ${BATAS_BARIS})` : undefined,
+  };
+}
+
+/**
  * Ekstrak teks dari satu berkas kantor.
  *
  * TIDAK PERNAH melempar — semua kegagalan jadi `{ ok: false, sebab }`, supaya
@@ -245,6 +344,20 @@ export async function ekstrak(jalur: string): Promise<HasilEkstrak> {
   try {
     if (ext === "docx") return await dariDocx(jalur);
     if (ext === "xlsx" || ext === "xlsm") return await dariExcel(jalur);
+    if (ext === "csv") return dariCsv(fs.readFileSync(jalur, "utf8"));
+    // TSV pemisahnya pasti tab; tidak perlu ditebak, dan menebaknya justru
+    // bisa salah pada kolom yang isinya memuat koma.
+    if (ext === "tsv") return dariCsv(fs.readFileSync(jalur, "utf8"), "\t");
+    if (ext === "xls") {
+      // Format BIFF lama. Satu-satunya pengurai npm yang membacanya punya
+      // kerentanan yang belum ditambal di versi publiknya, dan alat ini
+      // membaca berkas kiriman klien — risikonya tidak sebanding dengan
+      // perbaikan yang bagi kliennya cuma sepuluh detik.
+      return {
+        ok: false,
+        sebab: "format .xls lama — buka di Excel lalu Save As .xlsx, setelah itu bisa diindeks",
+      };
+    }
     return await dariPdf(fs.readFileSync(jalur));
   } catch (e) {
     return { ok: false, sebab: (e as Error).message };

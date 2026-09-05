@@ -213,3 +213,12 @@ describe("bangunIndeks — katalog Excel", () => {
     expect(cari("ongkir Bandung", 8, db).length).toBeGreaterThan(0);
   });
 });
+
+describe("bangunIndeks — CSV ekspor kasir", () => {
+  it("penjualan dan stok bisa dicari setelah diindeks", async () => {
+    const asal = path.join(process.cwd(), "data", "uji-kantor-docs");
+    const db = path.join(KOTAK, "csv.sqlite");
+    await bangunIndeks(asal, db);
+    expect(cari("Trail Pro Abu gudang Jakarta", 8, db).length).toBeGreaterThan(0);
+  });
+});
