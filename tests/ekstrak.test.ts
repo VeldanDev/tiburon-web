@@ -102,3 +102,52 @@ describe("ekstrak — Excel", () => {
     if (h.ok) expect(h.teks).toContain("Kota: Bandung; Tarif: 22000");
   });
 });
+
+describe("ekstrak — CSV dan TSV", () => {
+  it("mengenali pemisah TITIK KOMA, bukan memaksa koma", async () => {
+    // Excel berbahasa Indonesia menyimpan CSV dengan titik koma, karena koma
+    // sudah dipakai sebagai pemisah desimal. Pengurai yang memaksa koma akan
+    // membaca seluruh baris sebagai satu kolom raksasa — berkas yang
+    // "berhasil" diindeks tapi tidak pernah menjawab apa pun.
+    const h = await ekstrak(path.join(CONTOH, "penjualan.csv"));
+    expect(h.ok).toBe(true);
+    if (h.ok) expect(h.teks).toContain("Produk: Aero Run Biru; Qty: 2");
+  });
+
+  it("koma di dalam tanda kutip tidak membelah kolom", async () => {
+    // Tanpa ini, "Aero Run Hitam, edisi terbatas" jadi dua kolom dan menggeser
+    // seluruh kolom sesudahnya — harga barang muncul di kolom qty.
+    const h = await ekstrak(path.join(CONTOH, "penjualan.csv"));
+    if (h.ok) {
+      expect(h.teks).toContain("Produk: Aero Run Hitam, edisi terbatas");
+      expect(h.teks).toContain("Qty: 3");
+    }
+  });
+
+  it("BOM tidak menempel di judul kolom pertama", async () => {
+    // Kalau menempel, judulnya jadi "﻿Tanggal" dan tidak akan pernah
+    // cocok dengan kata "Tanggal".
+    const h = await ekstrak(path.join(CONTOH, "penjualan.csv"));
+    if (h.ok) {
+      expect(h.teks).toContain("Tanggal: 2026-09-01");
+      expect(h.teks).not.toContain("﻿");
+    }
+  });
+
+  it("TSV memakai tab tanpa menebak", async () => {
+    const h = await ekstrak(path.join(CONTOH, "stok.tsv"));
+    expect(h.ok).toBe(true);
+    if (h.ok) expect(h.teks).toContain("Gudang: Bandung; Produk: Aero Run Biru; Jumlah: 12");
+  });
+});
+
+describe("ekstrak — .xls lama", () => {
+  it("ditolak dengan cara memperbaikinya, bukan sekadar 'tidak didukung'", async () => {
+    // Pesan yang cuma bilang "format tidak didukung" membuat yang memasang
+    // buntu. Pesan yang menyebut Save As .xlsx menyelesaikannya dalam sepuluh
+    // detik — dan itu bedanya antara klien yang lanjut dan klien yang berhenti.
+    const h = await ekstrak(path.join(CONTOH, "lama.xls"));
+    expect(h.ok).toBe(false);
+    if (!h.ok) expect(h.sebab).toContain(".xlsx");
+  });
+});
