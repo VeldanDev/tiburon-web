@@ -7,6 +7,10 @@
  * saat gateway mati.
  */
 import type { PotonganKorpus } from "@/lib/korpus";
+import { kenaliSebab, rangkumKegagalan, type Kegagalan } from "@/lib/sebab-gagal";
+
+/** Galat yang membawa kode status HTTP-nya, supaya sebabnya bisa dikenali. */
+type GalatModel = Error & { status?: number };
 
 export type Pesan = { role: "user" | "assistant" | "system"; content: string };
 export type Kejadian =
@@ -151,7 +155,20 @@ async function* aliranSatuModel(model: string, pesan: Pesan[]): AsyncGenerator<K
   });
 
   if (!resp.ok || !resp.body) {
-    throw new Error(`HTTP ${resp.status}`);
+    // Badan galatnya DIBACA, tidak cuma kodenya. OpenRouter meneruskan
+    // kegagalan penyedia di baliknya di dalam badan — "temporarily
+    // rate-limited upstream" datang sebagai 429 yang isinya jauh lebih
+    // menjelaskan daripada angkanya. Dibatasi 400 karakter: badan galat
+    // bisa berupa halaman HTML utuh, dan itu tidak menolong siapa pun.
+    let rinci = "";
+    try {
+      rinci = (await resp.text()).slice(0, 400);
+    } catch {
+      // Badan yang tidak terbaca bukan alasan menelan galatnya.
+    }
+    const galat = new Error(rinci ? `HTTP ${resp.status} — ${rinci}` : `HTTP ${resp.status}`);
+    (galat as GalatModel).status = resp.status;
+    throw galat;
   }
 
   yield { jenis: "model", nama: model };
@@ -195,7 +212,7 @@ export async function* kirim(
     ingatan: opsi.ingatan,
     jiwa: opsi.jiwa,
   });
-  const kegagalan: string[] = [];
+  const kegagalan: Kegagalan[] = [];
 
   for (const model of rantai) {
     try {
@@ -208,14 +225,13 @@ export async function* kirim(
       // kegagalan senyap — persis pola genspark yang membalas HTTP 200 berisi
       // teks tagihan sehingga failover tak pernah terpicu.
       if (adaIsi) return;
-      kegagalan.push(`${model}: balasan kosong`);
+      kegagalan.push({ model, sebab: "kosong", pesan: "balasan kosong" });
     } catch (e) {
-      kegagalan.push(`${model}: ${(e as Error).message}`);
+      const pesan = (e as Error).message;
+      const status = (e as GalatModel).status ?? null;
+      kegagalan.push({ model, sebab: kenaliSebab(status, pesan), pesan });
     }
   }
 
-  yield {
-    jenis: "gagal",
-    pesan: `Semua model gagal — ${kegagalan.join("; ")}`,
-  };
+  yield { jenis: "gagal", pesan: rangkumKegagalan(kegagalan) };
 }
