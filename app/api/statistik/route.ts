@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { hitungStatistik, bandingkanBuku } from "@/lib/statistik";
+import { rentangSah } from "@/lib/statistik-bentuk";
 
 /**
  * Statistik pemakaian untuk kartu di layar kosong.
@@ -9,9 +10,12 @@ import { hitungStatistik, bandingkanBuku } from "@/lib/statistik";
  * ratusan sampai ribuan pesan — memindainya seluruhnya selesai dalam beberapa
  * milidetik, dan cache berarti angka yang basi tanpa ada yang tahu kapan.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const s = hitungStatistik();
+    // Rentangnya disaring lewat rentangSah: nilai bebas dari URL berarti
+    // tiap angka perlu dijaga dari negatif, nol, dan sepuluh juta.
+    const hari = rentangSah(new URL(req.url).searchParams.get("hari"));
+    const s = hitungStatistik(undefined, undefined, hari);
     return Response.json({ ...s, pembanding: bandingkanBuku(s.token) });
   } catch (e) {
     return Response.json(

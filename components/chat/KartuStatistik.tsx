@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { HARI_PETA, type Statistik } from "@/lib/statistik-bentuk";
+import { HARI_PETA, RENTANG, type Statistik } from "@/lib/statistik-bentuk";
 
 type Data = Statistik & { pembanding: string | null };
 
@@ -134,10 +134,11 @@ function BatangModel({ daftar }: { daftar: Statistik["modelTeratas"] }) {
 
 export function KartuStatistik() {
   const [data, setData] = useState<Data | null>(null);
+  const [hari, setHari] = useState(HARI_PETA);
 
   useEffect(() => {
     let batal = false;
-    fetch("/api/statistik")
+    fetch(`/api/statistik?hari=${hari}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => !batal && d && setData(d))
       // Gagal dibiarkan DIAM: ini keterangan tambahan di layar pembuka, dan
@@ -147,7 +148,7 @@ export function KartuStatistik() {
     return () => {
       batal = true;
     };
-  }, []);
+  }, [hari]);
 
   // Belum ada apa-apa untuk diringkas. Kartu berisi nol di semua kolom pada
   // pemakaian pertama terbaca seperti kegagalan, bukan seperti awal.
@@ -175,10 +176,35 @@ export function KartuStatistik() {
         <Petak label="Streak saat ini" nilai={`${data.streakSaatIni}h`} />
         <Petak label="Streak terpanjang" nilai={`${data.streakTerpanjang}h`} />
         <Petak label="Jam puncak" nilai={jam} />
-        <Petak label="Rentang" nilai={`${HARI_PETA / 7} minggu`} />
+        <Petak
+          label="Rentang"
+          nilai={RENTANG.find((r) => r.hari === data.hari)?.label ?? `${data.hari} hari`}
+        />
       </div>
 
       <PetaPanas harian={data.harian} />
+
+      {/* Pemilih rentang. Pilihannya DIPATOK, bukan angka bebas: rentang
+          bebas berarti tiap nilai perlu dijaga dari negatif, nol, dan
+          sepuluh juta — dan tidak ada yang ingin melihat 37 hari. */}
+      <div className="mt-3 flex flex-wrap gap-1" role="radiogroup" aria-label="Rentang statistik">
+        {RENTANG.map((r) => (
+          <button
+            key={r.hari}
+            role="radio"
+            aria-checked={hari === r.hari}
+            onClick={() => setHari(r.hari)}
+            className="rounded-full px-2.5 py-1 text-[11px] transition"
+            style={
+              hari === r.hari
+                ? { background: "var(--lapis-2)", color: "var(--foam)" }
+                : { color: "var(--teks-redup)" }
+            }
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
 
       {/* Muncul hanya setelah ada jawaban yang modelnya benar-benar tercatat.
           Blok kosong berlabel "Dijawab oleh" terbaca seperti fitur rusak, dan

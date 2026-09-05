@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { hitungStatistik, bandingkanBuku, HARI_PETA } from "@/lib/statistik";
+import { RENTANG, rentangSah } from "@/lib/statistik-bentuk";
+import { buatPercakapan, tambahPesan } from "@/lib/riwayat";
+import fs from "node:fs";
+import os from "node:os";
 import { siapkanSkema } from "@/lib/skema";
 
 let db: string;
@@ -110,5 +114,42 @@ describe("bandingkanBuku", () => {
 
   it("menyebut kelipatannya", () => {
     expect(bandingkanBuku(560_000)).toMatch(/2×|2,0×/);
+  });
+});
+
+describe("rentang statistik", () => {
+  it("menerima tiap rentang yang terdaftar", () => {
+    for (const r of RENTANG) expect(rentangSah(r.hari)).toBe(r.hari);
+    for (const r of RENTANG) expect(rentangSah(String(r.hari))).toBe(r.hari);
+  });
+
+  it("jatuh ke bawaan untuk nilai yang tidak dikenal", () => {
+    // Rentang bebas dari URL berarti tiap nilai perlu dijaga dari negatif,
+    // nol, dan sepuluh juta. Dipatok, jadi penjagaannya cuma satu baris.
+    for (const buruk of [0, -5, 9999, 37, NaN, null, undefined, "banyak", {}]) {
+      expect(rentangSah(buruk)).toBe(HARI_PETA);
+    }
+  });
+
+  it("peta panas sepanjang rentang yang diminta, termasuk hari kosong", () => {
+    // Melewati hari kosong akan memampatkan kisinya dan membuat jeda seminggu
+    // terlihat sama dengan jeda sehari.
+    const db = path.join(os.tmpdir(), `rentang-${Date.now()}-${Math.random()}.sqlite`);
+    try {
+      const id = buatPercakapan("Uji", db);
+      tambahPesan(id, { role: "user", content: "x" }, db);
+
+      for (const r of [7, 30, 365]) {
+        const s = hitungStatistik(db, Date.now(), r);
+        expect(s.hari).toBe(r);
+        expect(s.harian).toHaveLength(r);
+      }
+    } finally {
+      try {
+        fs.unlinkSync(db);
+      } catch {
+        // berkas sementara tidak wajib ada
+      }
+    }
   });
 });

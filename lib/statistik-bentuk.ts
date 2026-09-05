@@ -31,9 +31,32 @@ export type Statistik = {
    * seperti menghitung semuanya.
    */
   jawabanTanpaModel: number;
-  /** Jumlah pesan per hari, HARI_PETA hari terakhir, untuk peta panas. */
+  /** Rentang yang dihitung, dalam hari. */
+  hari: number;
+  /** Jumlah pesan per hari, sepanjang rentangnya, untuk peta panas. */
   harian: { tanggal: string; jumlah: number }[];
 };
 
 /** Hari yang ditampilkan di peta panas: 12 minggu penuh. */
 export const HARI_PETA = 84;
+
+/**
+ * Rentang yang boleh diminta, dalam hari.
+ *
+ * `/insights --days N` milik Hermes, dengan pilihan yang dipatok alih-alih
+ * angka bebas: rentang bebas berarti tiap nilai perlu dijaga dari angka
+ * negatif, nol, dan sepuluh juta — dan tidak ada yang benar-benar ingin
+ * melihat 37 hari.
+ */
+export const RENTANG: { hari: number; label: string }[] = [
+  { hari: 7, label: "7 hari" },
+  { hari: 30, label: "30 hari" },
+  { hari: 84, label: "12 minggu" },
+  { hari: 365, label: "1 tahun" },
+];
+
+/** Rentang dari nilai apa pun, jatuh ke 12 minggu kalau tidak dikenali. */
+export function rentangSah(nilai: unknown): number {
+  const n = Number(nilai);
+  return RENTANG.some((r) => r.hari === n) ? n : HARI_PETA;
+}

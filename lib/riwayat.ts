@@ -270,3 +270,61 @@ function cuplik(teks: string, kueri: string, lebar = 90): string {
   const potong = teks.slice(mulai, akhir).replace(/\s+/g, " ").trim();
   return `${mulai > 0 ? "…" : ""}${potong}${akhir < teks.length ? "…" : ""}`;
 }
+
+/**
+ * Buang giliran terakhir sebuah percakapan.
+ *
+ * `/undo` milik Hermes. Bedanya dari menyunting pesan — yang sudah ada di
+ * Tiburon — adalah niatnya: menyunting untuk MEMPERBAIKI pertanyaan lalu
+ * bertanya lagi; undo untuk MEMBATALKAN, karena pertanyaannya sendiri tidak
+ * jadi ditanyakan.
+ *
+ * Yang dianggap satu giliran:
+ *
+ *   jawaban di akhir      buang jawabannya DAN pertanyaan yang memicunya
+ *   pertanyaan di akhir   buang pertanyaannya saja (jawabannya dihentikan,
+ *                         atau belum sempat datang)
+ *
+ * Aturan kedua itu penting: setelah menekan Esc, yang tertinggal cuma
+ * pertanyaan tanpa jawaban, dan undo harus bisa membersihkannya.
+ *
+ * `diperbarui` SENGAJA tidak dimundurkan. Kolom itu artinya "kapan terakhir
+ * ada percakapan di sini", dan membatalkan giliran tetap kejadian di sini —
+ * memundurkannya akan memindahkan percakapan ini ke bawah di sidebar seolah
+ * ia tidak disentuh hari ini.
+ */
+export function batalkanGiliranTerakhir(
+  id: string,
+  dbPath = dbRiwayat(),
+): { dibuang: number } {
+  const db = buka(dbPath);
+  try {
+    const baris = db
+      .prepare("SELECT id, peran FROM pesan WHERE percakapan_id = ? ORDER BY id DESC LIMIT 2")
+      .all(id) as unknown as { id: number; peran: string }[];
+
+    if (baris.length === 0) return { dibuang: 0 };
+
+    // Pesan pengguna tepat sebelum jawabannya ikut dibuang; kalau yang di
+    // ujung justru pesan pengguna, hanya ia sendiri yang pergi.
+    const buang =
+      baris[0].peran === "assistant" && baris[1]?.peran === "user"
+        ? [baris[0].id, baris[1].id]
+        : [baris[0].id];
+
+    // Dalam satu transaksi: dua penghapusan yang setengah jadi meninggalkan
+    // jawaban tanpa pertanyaan, dan itu percakapan yang tidak mungkin terjadi.
+    db.exec("BEGIN");
+    try {
+      const hapus = db.prepare("DELETE FROM pesan WHERE id = ?");
+      for (const p of buang) hapus.run(p);
+      db.exec("COMMIT");
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+    return { dibuang: buang.length };
+  } finally {
+    db.close();
+  }
+}
