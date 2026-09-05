@@ -23,6 +23,7 @@ const TAMBAHAN: { tabel: string; kolom: string; definisi: string }[] = [
   // yang sudah ada sebelum kolom ini bernilai NULL, dan statistik model
   // harus menghitungnya sebagai tidak diketahui -- bukan mengarangnya.
   { tabel: "pesan", kolom: "model", definisi: "TEXT" },
+  { tabel: "percakapan", kolom: "persona_id", definisi: "TEXT" },
 ];
 
 export function siapkanSkema(db: DatabaseSync): void {
@@ -34,7 +35,8 @@ export function siapkanSkema(db: DatabaseSync): void {
       dibuat INTEGER NOT NULL,
       diperbarui INTEGER NOT NULL,
       disemat INTEGER NOT NULL DEFAULT 0,
-      proyek_id TEXT
+      proyek_id TEXT,
+      persona_id TEXT
     );
 
     CREATE TABLE IF NOT EXISTS pesan (
@@ -46,6 +48,18 @@ export function siapkanSkema(db: DatabaseSync): void {
       model TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_pesan_percakapan ON pesan(percakapan_id, id);
+
+    CREATE TABLE IF NOT EXISTS persona (
+      id TEXT PRIMARY KEY,
+      nama TEXT NOT NULL,
+      jiwa TEXT NOT NULL DEFAULT '',
+      -- Rantai model disimpan sebagai teks dipisah baris, bukan JSON: kolom
+      -- ini berasal dari kotak teks yang disunting manusia, dan JSON yang
+      -- rusak sedikit saja menghilangkan seluruh rantainya tanpa pesan.
+      rantai TEXT NOT NULL DEFAULT '',
+      pemilik TEXT NOT NULL DEFAULT '',
+      dibuat INTEGER NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS proyek (
       id TEXT PRIMARY KEY,

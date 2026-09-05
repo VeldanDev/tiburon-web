@@ -5,6 +5,7 @@ import { namaAkhir, petaLabel } from "@/lib/label-berkas";
 import { daftarBerkas, cari, periksaSkema, type PotonganKorpus } from "@/lib/korpus";
 import { kirim, type Pesan } from "@/lib/penyedia";
 import { ambilPengaturan } from "@/lib/pengaturan";
+import { personaPercakapan } from "@/lib/persona";
 import { instruksiUntukPercakapan } from "@/lib/proyek";
 
 function baris(obj: unknown): Uint8Array {
@@ -19,7 +20,12 @@ function baris(obj: unknown): Uint8Array {
  * Basis data terkunci sesaat sebaiknya berujung pada jawaban yang sedikit
  * lebih umum, bukan pada layar galat.
  */
-function bacaTambahan(percakapanId?: string): { instruksi?: string; ingatan?: string[] } {
+function bacaTambahan(percakapanId?: string): {
+  instruksi?: string;
+  ingatan?: string[];
+  jiwa?: string;
+  rantai?: string[];
+} {
   try {
     const p = ambilPengaturan();
 
@@ -31,7 +37,18 @@ function bacaTambahan(percakapanId?: string): { instruksi?: string; ingatan?: st
     const proyek = percakapanId ? instruksiUntukPercakapan(percakapanId) : "";
     const gabung = [p.instruksi, proyek].filter((t) => t.trim()).join("\n\n");
 
-    return { instruksi: gabung, ingatan: p.ingatan.map((i) => i.isi) };
+    // Persona dibaca DI SERVER, sama seperti instruksi dan ingatan. Klien
+    // cuma mengirim id percakapannya; kalau ia yang memasok isi prompt
+    // sistem, siapa pun yang bisa memanggil rute ini bisa menyisipkan apa
+    // pun ke dalamnya.
+    const persona = personaPercakapan(percakapanId);
+
+    return {
+      instruksi: gabung,
+      ingatan: p.ingatan.map((i) => i.isi),
+      jiwa: persona?.jiwa,
+      rantai: persona?.rantai.length ? persona.rantai : undefined,
+    };
   } catch {
     return {};
   }
@@ -119,10 +136,10 @@ export async function POST(req: Request) {
       // Instruksi khusus dan ingatan dibaca DI SINI, di server, bukan
       // dikirim dari browser. Kalau klien yang mengirimnya, siapa pun yang
       // bisa memanggil rute ini bisa menyuntik prompt sistem apa pun.
-      const { instruksi, ingatan } = bacaTambahan(
+      const { instruksi, ingatan, jiwa, rantai } = bacaTambahan(
         typeof percakapan === "string" ? percakapan : undefined,
       );
-      for await (const k of kirim(pesan, { konteks, instruksi, ingatan })) {
+      for await (const k of kirim(pesan, { konteks, instruksi, ingatan, jiwa, rantai })) {
         kontrol.enqueue(baris(k));
       }
       kontrol.enqueue(baris({ jenis: "selesai" }));
