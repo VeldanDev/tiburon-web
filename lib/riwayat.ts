@@ -8,6 +8,7 @@
  * Menambah kolom pada tabel yang sudah berisi data jauh lebih mahal daripada
  * menyiapkannya di awal.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { siapkanSkema } from "@/lib/skema";
@@ -30,7 +31,7 @@ export type HasilCari = {
 };
 
 export function dbRiwayat(): string {
-  return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
+  return konfigurasi().riwayatDb;
 }
 
 function buka(dbPath: string): DatabaseSync {

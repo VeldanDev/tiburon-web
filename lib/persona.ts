@@ -22,6 +22,7 @@
  * memisahkan keduanya berarti pengguna harus mengingat pasangan yang benar
  * setiap kali.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -61,7 +62,7 @@ export const BATAS_JIWA = 1500;
 export const BATAS_JUMLAH_PERSONA = 12;
 
 export function dbPersona(): string {
-  return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
+  return konfigurasi().riwayatDb;
 }
 
 function buka(dbPath: string): DatabaseSync {

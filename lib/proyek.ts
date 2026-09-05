@@ -13,6 +13,7 @@
  * keduanya di instruksi global berarti setiap percakapan membawa konteks
  * setengahnya tidak relevan.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { siapkanSkema } from "@/lib/skema";
@@ -31,7 +32,7 @@ export type Proyek = {
 export const BATAS_INSTRUKSI_PROYEK = 4000;
 
 export function dbProyek(): string {
-  return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
+  return konfigurasi().riwayatDb;
 }
 
 function buka(dbPath: string): DatabaseSync {

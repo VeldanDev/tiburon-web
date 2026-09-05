@@ -10,6 +10,7 @@
  * (~3,6 karakter per token). Disebut begitu di antarmukanya, bukan disamarkan
  * jadi angka pasti.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { siapkanSkema } from "@/lib/skema";
@@ -30,7 +31,7 @@ export { HARI_PETA, type Statistik };
 const MODEL_DITAMPILKAN = 3;
 
 function dbStat(): string {
-  return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
+  return konfigurasi().riwayatDb;
 }
 
 function buka(dbPath: string): DatabaseSync {

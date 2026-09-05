@@ -10,6 +10,7 @@
  * Tugas-tugas ini nyata dan berjalan tiap hari di mesin ini: Radar Pagi 06:30,
  * Radar Peluang 07:00, indexing korpus 09:00/13:00/17:00.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import os from "node:os";
@@ -32,10 +33,7 @@ export type TugasTerjadwal = {
 export type HasilSkemaJadwal = { cocok: boolean; alasan?: string };
 
 export function dbJadwal(): string {
-  return (
-    process.env.TIBURON_JADWAL_DB ??
-    path.join(process.env.USERPROFILE ?? os.homedir(), ".openclaw", "state", "openclaw.sqlite")
-  );
+  return konfigurasi().jadwalDb;
 }
 
 function buka(p: string): DatabaseSync {
