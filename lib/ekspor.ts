@@ -14,6 +14,23 @@ export type PesanEkspor = {
   isi: string;
   model?: string;
   sumber?: string[];
+  /**
+   * Alat yang dipanggil agen untuk sampai ke jawaban ini.
+   *
+   * Ikut diekspor karena di jalur Agen justru INI buktinya: apa yang dicari,
+   * dan apa yang ditemukannya. Ekspor yang membuang jejaknya menyisakan
+   * jawaban yang harus dipercaya begitu saja — persis keadaan yang seluruh
+   * aplikasi ini dibangun untuk dihindari.
+   */
+  jejak?: { nama: string; ringkas: string }[];
+  /**
+   * Dihentikan di tengah jalan.
+   *
+   * Wajib ikut. Tanpa penanda ini, jawaban yang terputus terbaca di berkas
+   * ekspor seolah lengkap — dokumen yang berbohong tentang keutuhannya
+   * sendiri, dan tidak ada cara mengetahuinya lagi kemudian.
+   */
+  dihentikan?: boolean;
 };
 
 /**
@@ -49,11 +66,22 @@ export function keMarkdown(judul: string, pesan: PesanEkspor[], waktu = Date.now
     // Model yang menjawab ikut dicatat. Tanpa itu, membandingkan dua ekspor
     // lama tidak bisa menjawab "kenapa jawaban ini lebih baik" — dan di sini
     // model bisa berganti diam-diam lewat rantai cadangan.
-    const kepalaBalasan = p.model ? `## Tiburon · ${p.model}` : "## Tiburon";
+    const tanda = p.dihentikan ? " · dihentikan" : "";
+    const kepalaBalasan = p.model
+      ? `## Tiburon · ${p.model}${tanda}`
+      : `## Tiburon${tanda}`;
     const sumber = p.sumber?.length
       ? `\n\n_Sumber korpus: ${p.sumber.join(", ")}_`
       : "";
-    return `${kepalaBalasan}\n\n${p.isi}${sumber}`;
+    // Jejak alat ditaruh SETELAH jawabannya dan dilipat: yang dibaca orang
+    // lebih dulu adalah jawabannya; jejaknya dibuka saat ia ingin memeriksa.
+    const jejak = p.jejak?.length
+      ? `\n\n<details>\n<summary>Jejak alat (${p.jejak.length})</summary>\n\n` +
+        p.jejak.map((j) => `- **${j.nama}** — ${j.ringkas}`).join("\n") +
+        `\n\n</details>`
+      : "";
+
+    return `${kepalaBalasan}\n\n${p.isi}${sumber}${jejak}`;
   });
 
   return `${kepala.join("\n")}${badan.join("\n\n")}\n`;
