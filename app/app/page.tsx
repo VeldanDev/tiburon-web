@@ -24,6 +24,7 @@ import { useJalurAwal } from "@/components/JalurAwal";
 import { PETA_JALUR } from "@/lib/pintasan";
 import { TIAP_PESAN } from "@/lib/ingatan-otomatis";
 import { baca as bacaBtw } from "@/lib/tanya-samping";
+import { baca as bacaLamar } from "@/lib/lamaran";
 import { PengukurKedalaman } from "@/components/chat/PengukurKedalaman";
 import { SaljuLaut } from "@/components/chat/SaljuLaut";
 import { Sonar } from "@/components/chat/Sonar";
@@ -775,6 +776,17 @@ function IsiObrolan() {
       return;
     }
 
+    // /lamar sama: iklan lowongan bukan bagian dari percakapan. Disimpan ke
+    // riwayat, ia akan ikut terbawa ke setiap giliran berikutnya — dan
+    // percakapan tentang hal lain tiba-tiba berisi iklan yang sudah tidak
+    // relevan sejak minggu lalu.
+    const iklan = bacaLamar(teks);
+    if (iklan) {
+      setTeks("");
+      await tulisLamaran(iklan);
+      return;
+    }
+
     // /undo juga dikenali sebelum apa pun dikirim: tidak ada gunanya
     // memanggil model untuk sesuatu yang justru membuang giliran terakhir.
     if (/^\s*\/undo\s*$/i.test(teks)) {
@@ -888,6 +900,53 @@ function IsiObrolan() {
    * Sengaja tidak memakai `jalankan`: seluruh fungsi itu ada untuk menulis ke
    * riwayat dan menyimpannya, dan itu justru yang tidak boleh terjadi di sini.
    */
+  /**
+   * Tulis lamaran dari iklan yang ditempel.
+   *
+   * Memakai panel sampingan yang sama dengan `/btw`, dengan alasan yang sama:
+   * hasilnya bukan bagian dari percakapan, tidak disimpan, dan tidak ikut
+   * diekspor. Yang berbeda cuma rutenya.
+   */
+  async function tulisLamaran(iklan: string) {
+    setSamping({ tanya: "Menilai lowongan dan menulis lamaran…", jawab: "", sibuk: true });
+    try {
+      const r = await fetch("/api/lamar", {
+        method: "POST",
+        body: JSON.stringify({ iklan }),
+      });
+      if (!r.ok || !r.body) {
+        const j = (await r.json().catch(() => null)) as { pesan?: string } | null;
+        throw new Error(j?.pesan ?? `HTTP ${r.status}`);
+      }
+
+      const pembaca = r.body.getReader();
+      const dekoder = new TextDecoder();
+      let sisa = "";
+      for (;;) {
+        const { done, value } = await pembaca.read();
+        if (done) break;
+        sisa += dekoder.decode(value, { stream: true });
+        const baris = sisa.split("\n");
+        sisa = baris.pop() ?? "";
+        for (const b of baris) {
+          if (!b.startsWith("data: ")) continue;
+          const k = bacaKejadian(b.slice(6));
+          if (!k) continue;
+          if (k.jenis === "teks") {
+            setSamping((s) => (s ? { ...s, jawab: s.jawab + k.teks } : s));
+          }
+          if (k.jenis === "gagal") {
+            setSamping((s) => (s ? { ...s, jawab: `**Gagal:** ${k.pesan}` } : s));
+          }
+        }
+      }
+    } catch (e) {
+      setSamping((s) => (s ? { ...s, jawab: `**Gagal:** ${(e as Error).message}` } : s));
+    } finally {
+      setSamping((s) => (s ? { ...s, sibuk: false } : s));
+    }
+  }
+
   async function tanyaSamping(tanya: string) {
     setSamping({ tanya, jawab: "", sibuk: true });
     try {
