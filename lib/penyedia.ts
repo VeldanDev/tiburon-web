@@ -8,6 +8,7 @@
  */
 import type { PotonganKorpus } from "@/lib/korpus";
 import { kenaliSebab, rangkumKegagalan, type Kegagalan } from "@/lib/sebab-gagal";
+import { muatkan } from "@/lib/muat";
 
 /** Galat yang membawa kode status HTTP-nya, supaya sebabnya bisa dikenali. */
 type GalatModel = Error & { status?: number };
@@ -140,7 +141,11 @@ export function susunPrompt(
       `begitu — jangan mengisi kekosongan dengan pengetahuan umum tanpa ` +
       `memberi tahu.\n\n${sumber}`;
   }
-  return [{ role: "system", content: sistem }, ...pesan];
+  // Dipangkas DI SINI, di titik yang dilewati semua permintaan jalur obrolan.
+  // Meter konteks memperingatkan sejak 50%; tanpa ini, di 101% permintaannya
+  // tetap dikirim utuh dan gagal dengan pesan yang tidak menyebut satu pun
+  // hal yang bisa dilakukan Veldan.
+  return muatkan([{ role: "system", content: sistem }, ...pesan]).pesan as Pesan[];
 }
 
 async function* aliranSatuModel(model: string, pesan: Pesan[]): AsyncGenerator<Kejadian> {
