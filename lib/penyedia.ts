@@ -110,12 +110,19 @@ export function bagianBersama(tambahan?: {
   return teks;
 }
 
+/**
+ * `jiwa` MENGGANTIKAN persona bawaan, bukan ditambahkan sesudahnya.
+ *
+ * Kalau ia ditumpuk di atas persona bawaan, kedua definisi berlaku sekaligus
+ * dan model harus menebak mana yang menang — dan persona yang dibuat justru
+ * untuk mengganti sifat bawaannya jadi tidak pernah benar-benar berlaku.
+ */
 export function susunPrompt(
   pesan: Pesan[],
   konteks: PotonganKorpus[],
-  tambahan?: { instruksi?: string; ingatan?: string[] },
+  tambahan?: { instruksi?: string; ingatan?: string[]; jiwa?: string },
 ): Pesan[] {
-  let sistem = PERSONA + bagianBersama(tambahan);
+  let sistem = (tambahan?.jiwa?.trim() || PERSONA) + bagianBersama(tambahan);
 
   if (konteks.length) {
     const sumber = konteks
@@ -177,12 +184,14 @@ export async function* kirim(
     rantai?: string[];
     instruksi?: string;
     ingatan?: string[];
+    jiwa?: string;
   } = {},
 ): AsyncGenerator<Kejadian> {
   const rantai = opsi.rantai ?? RANTAI_BAWAAN;
   const siap = susunPrompt(pesan, opsi.konteks ?? [], {
     instruksi: opsi.instruksi,
     ingatan: opsi.ingatan,
+    jiwa: opsi.jiwa,
   });
   const kegagalan: string[] = [];
 
