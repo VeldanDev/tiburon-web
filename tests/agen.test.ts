@@ -18,7 +18,7 @@ vi.mock("@/lib/alat", () => ({
       },
     },
   ],
-  jalankanAlat: vi.fn(() => "hasil alat"),
+  jalankanAlat: vi.fn(async () => "hasil alat"),
   ringkasPanggilan: vi.fn(() => "Mencari korpus"),
 }));
 
@@ -180,8 +180,8 @@ describe("agen menyebut sumbernya", () => {
    * yang bisa dibuka, dan tidak ada yang tercatat di Riwayat sumber.
    */
   function alatMelapor(berkas: string[], kueri: string) {
-    vi.mocked(alat.jalankanAlat).mockImplementation((_n, _a, lapor) => {
-      lapor?.(berkas, kueri);
+    vi.mocked(alat.jalankanAlat).mockImplementation(async (_n, _a, ctx) => {
+      ctx?.lapor?.(berkas, kueri);
       return "hasil alat";
     });
   }
@@ -220,7 +220,7 @@ describe("agen menyebut sumbernya", () => {
 
   it("diam kalau tidak ada alat yang menyentuh korpus", async () => {
     // Chip sumber kosong di bawah jawaban terbaca seperti fitur rusak.
-    vi.mocked(alat.jalankanAlat).mockImplementation(() => "hasil alat");
+    vi.mocked(alat.jalankanAlat).mockImplementation(async () => "hasil alat");
     const f = vi.fn();
     f.mockResolvedValueOnce(panggilAlat()).mockResolvedValueOnce(jawab());
     vi.stubGlobal("fetch", f);

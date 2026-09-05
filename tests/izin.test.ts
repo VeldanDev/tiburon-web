@@ -42,10 +42,25 @@ describe("lantai — tidak pernah boleh, apa pun setelannya", () => {
     tolak({ jenis: "hapus-berkas", sasaran: korpus });
   });
 
-  it("menolak apa pun di luar folder yang boleh", () => {
-    for (const luar of ["C:\\Windows\\System32\\drivers\\etc\\hosts", "/etc/passwd", "D:\\lain\\x.txt"]) {
+  it("menolak MENULIS dan MENGHAPUS di luar folder yang boleh", () => {
+    for (const luar of ["C:\\Windows\\System32\\hosts", "/etc/passwd", "D:\\lain\\x.txt"]) {
       tolak({ jenis: "tulis-berkas", sasaran: luar });
+      tolak({ jenis: "hapus-berkas", sasaran: luar });
     }
+  });
+
+  it("MEMBACA di luar folder yang boleh BERTANYA, bukan ditolak", () => {
+    // Itu justru kasus yang dialog izin ada untuk menyelesaikannya. Ditaruh
+    // di lantai, Veldan tidak bisa menunjuk satu berkas di luar proyek walau
+    // ia sendiri yang meminta — dan dialognya tidak pernah terpicu.
+    expect(putuskan({ jenis: "baca-berkas", sasaran: "D:\\lain\\catatan.md" }).hasil).toBe(
+      "tanya",
+    );
+  });
+
+  it("berkas rahasia di luar proyek TETAP lantai, bukan pertanyaan", () => {
+    // Kalau ia turun jadi pertanyaan, satu klik keliru membocorkan kunci.
+    expect(tolak({ jenis: "baca-berkas", sasaran: "D:\\lain\\.env" }).lantai).toBe(true);
   });
 
   it("tidak tertipu jalur yang keluar lewat ..", () => {

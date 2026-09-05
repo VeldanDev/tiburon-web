@@ -16,6 +16,7 @@
  *   alat hanya-baca lihat lib/alat.ts — tidak ada yang bisa dirusak
  */
 import { SKEMA_ALAT, jalankanAlat, ringkasPanggilan } from "@/lib/alat";
+import type { Tindakan as TindakanIzin } from "@/lib/izin";
 import { RANTAI_BAWAAN, bagianBersama, type Pesan } from "@/lib/penyedia";
 
 export type KejadianAgen =
@@ -142,6 +143,15 @@ export async function* jalankanAgen(
     instruksi?: string;
     ingatan?: string[];
     signal?: AbortSignal;
+    /**
+     * Ajukan izin dan tunggu jawabannya.
+     *
+     * Disediakan RUTE, bukan dibuat di sini, karena mengajukan izin berarti
+     * mengirim sesuatu ke layar — dan yang memegang alirannya adalah rute.
+     * Tidak disediakan berarti tidak ada yang bisa ditanya, dan alat yang
+     * butuh izin akan menolak sendiri.
+     */
+    mintaIzin?: (t: TindakanIzin) => Promise<boolean>;
   } = {},
 ): AsyncGenerator<KejadianAgen> {
   const rantai = opsi.rantai ?? RANTAI_BAWAAN;
@@ -217,9 +227,12 @@ export async function* jalankanAgen(
           if (opsi.signal?.aborted) return;
 
           yield { jenis: "alat-mulai", nama: p.nama, ringkas: ringkasPanggilan(p.nama, p.argumen) };
-          const keluaran = jalankanAlat(p.nama, p.argumen, (berkas, kueri) => {
-            for (const f of berkas) sumber.add(f);
-            kueriDipakai.add(kueri);
+          const keluaran = await jalankanAlat(p.nama, p.argumen, {
+            lapor: (berkas, kueri) => {
+              for (const f of berkas) sumber.add(f);
+              kueriDipakai.add(kueri);
+            },
+            mintaIzin: opsi.mintaIzin,
           });
           yield { jenis: "alat-selesai", nama: p.nama, hasil: keluaran };
 
