@@ -17,6 +17,7 @@
  */
 import { SKEMA_ALAT, jalankanAlat, ringkasPanggilan } from "@/lib/alat";
 import type { Tindakan as TindakanIzin } from "@/lib/izin";
+import { kenaliSebab, rangkumKegagalan, type Kegagalan } from "@/lib/sebab-gagal";
 import { RANTAI_BAWAAN, bagianBersama, type Pesan } from "@/lib/penyedia";
 
 export type KejadianAgen =
@@ -118,7 +119,20 @@ async function panggil(
     body: JSON.stringify({ model, messages: pesan, tools: SKEMA_ALAT, stream: false }),
   });
 
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  if (!resp.ok) {
+    // Badan galatnya dibaca, sama seperti di jalur obrolan: OpenRouter
+    // meneruskan kegagalan penyedia di baliknya di dalam badan, dan itu
+    // jauh lebih menjelaskan daripada angka statusnya.
+    let rinci = "";
+    try {
+      rinci = (await resp.text()).slice(0, 400);
+    } catch {
+      // Badan yang tidak terbaca bukan alasan menelan galatnya.
+    }
+    const galat = new Error(rinci ? `HTTP ${resp.status} — ${rinci}` : `HTTP ${resp.status}`);
+    (galat as Error & { status?: number }).status = resp.status;
+    throw galat;
+  }
 
   const data = await resp.json();
   const pilihan = data?.choices?.[0]?.message;
@@ -155,7 +169,7 @@ export async function* jalankanAgen(
   } = {},
 ): AsyncGenerator<KejadianAgen> {
   const rantai = opsi.rantai ?? RANTAI_BAWAAN;
-  const kegagalan: string[] = [];
+  const kegagalan: Kegagalan[] = [];
 
   for (const model of rantai) {
     // Percakapan dibangun ULANG untuk tiap model dalam rantai. Kalau dipakai
@@ -252,9 +266,16 @@ export async function* jalankanAgen(
       return;
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      kegagalan.push(`${model}: ${(e as Error).message}`);
+      const pesan = (e as Error).message;
+      const status = (e as Error & { status?: number }).status ?? null;
+      kegagalan.push({ model, sebab: kenaliSebab(status, pesan), pesan });
     }
   }
 
-  yield { jenis: "gagal", pesan: `Semua model gagal — ${kegagalan.join("; ")}` };
+  // Sebabnya diklasifikasi lewat jalur yang SAMA dengan jalur obrolan.
+  // Dua tempat yang meringkas kegagalan dengan cara berbeda berarti satu
+  // dari keduanya akan tertinggal saat yang lain diperbaiki — dan itu
+  // persis yang terjadi: jalur Agen masih menampilkan "Semua model gagal
+  // — HTTP 429" berjam-jam setelah jalur obrolan berhenti melakukannya.
+  yield { jenis: "gagal", pesan: rangkumKegagalan(kegagalan) };
 }
