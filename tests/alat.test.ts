@@ -46,8 +46,13 @@ describe("skema alat", () => {
   });
 
   it("tidak ada alat yang bisa menulis atau menjalankan perintah", () => {
-    // Agen yang bisa menulis butuh lapisan izin per tindakan, dan lapisan itu
-    // belum ada. Uji ini adalah pagarnya sampai lapisan itu dibuat.
+    // Lapisan izin sekarang SUDAH ada (lib/izin.ts), tapi belum ada satu pun
+    // alat berkemampuan-tulis yang dibangun lewatnya. Pagar ini tetap:
+    // menambah alat tulis harus jadi keputusan sadar yang memecahkan uji
+    // ini lebih dulu, bukan sesuatu yang menyelinap masuk.
+    //
+    // Alat baca pertama (baca_berkas) sudah lewat lapisan itu dan tidak
+    // cocok dengan pola di bawah — memang begitu maksudnya.
     const nama = SKEMA_ALAT.map((s) => s.function.name).join(" ");
     expect(nama).not.toMatch(/tulis|hapus|jalankan|eksekusi|write|delete|exec|shell/i);
   });

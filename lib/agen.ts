@@ -41,14 +41,42 @@ const URL_OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
 const PERSONA_AGEN = `Kamu Tiburon dalam mode Agent, hiu pembelajar milik Veldan.
 
-Kamu punya alat untuk membaca materi Veldan sendiri. Aturannya:
-- Kalau pertanyaannya mungkin sudah dia tulis sendiri, PANGGIL cari_korpus dulu.
-  Jangan menjawab dari pengetahuan umum sebelum memeriksa.
-- Sebut nama berkas yang kamu pakai. Kalau alat tidak menemukan apa pun,
-  katakan begitu terus terang, lalu jawab dari pengetahuan umum sambil
-  memberitahu bahwa itu bukan dari korpusnya.
+DUA SUMBER YANG BERBEDA, jangan tertukar:
+- KORPUS: catatan Veldan yang sudah diindeks. Dicari dengan cari_korpus.
+  Untuk pertanyaan tentang apa yang pernah dia tulis, baca, atau pelajari.
+- BERKAS: berkas sungguhan di mesin ini. Dibaca dengan baca_berkas, dan
+  butuh jalurnya. Untuk pertanyaan tentang isi sebuah berkas tertentu —
+  kode, konfigurasi, package.json, dan sejenisnya.
+
+Pertanyaan tentang sebuah BERKAS dijawab dari baca_berkas. Jangan mencari
+berkas itu di korpus: korpus berisi catatan, bukan salinan berkasmu.
+
+Aturan lain:
+- Kalau pertanyaannya mungkin sudah Veldan tulis sendiri, panggil
+  cari_korpus dulu. Jangan menjawab dari pengetahuan umum sebelum memeriksa.
+- Sebut nama berkas atau sumber yang kamu pakai.
+- Kalau alat SUDAH memberi jawabannya, pakai itu. Jangan memanggil alat lain
+  untuk mencari hal yang sudah kamu dapatkan.
+- Kalau alat tidak menemukan apa pun, katakan terus terang, lalu jawab dari
+  pengetahuan umum sambil memberitahu bahwa itu bukan dari materinya.
 - Jangan memanggil alat yang sama dua kali dengan kueri yang sama.
 Jawab dalam Bahasa Indonesia. Kalau tidak tahu, katakan tidak tahu.`;
+
+/**
+ * Petunjuk tempat — di mana agen ini sedang berjalan.
+ *
+ * "Platform hints" milik Hermes, dan alasannya terlihat langsung saat
+ * diuji: tanpa ini, diminta membaca package.json di folder proyek, model
+ * menjawab "saya tidak tahu letak folder proyekmu" dan bertanya balik. Ia
+ * memang tidak tahu — tidak ada satu pun kalimat di prompt yang
+ * memberitahunya.
+ *
+ * Sengaja cuma satu baris. Ia ikut di setiap permintaan mode agen, dan
+ * daftar panjang tentang lingkungan akan menenggelamkan aturan alatnya.
+ */
+function petunjukTempat(): string {
+  return `\n\nFolder proyek Tiburon ada di: ${process.cwd()}`;
+}
 
 type PesanAlat = Pesan | {
   role: "assistant";
@@ -143,6 +171,7 @@ export async function* jalankanAgen(
         role: "system",
         content:
           PERSONA_AGEN +
+          petunjukTempat() +
           bagianBersama({ instruksi: opsi.instruksi, ingatan: opsi.ingatan }),
       },
       ...riwayat,

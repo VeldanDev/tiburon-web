@@ -30,6 +30,7 @@
  */
 import { cari, periksaSkema, daftarBerkas } from "@/lib/korpus";
 import { petaLabel } from "@/lib/label-berkas";
+import { bacaBerkas } from "@/lib/baca-berkas";
 import { bacaRadar } from "@/lib/radar-parser";
 import { ringkasSumber } from "@/lib/sumber-terpakai";
 
@@ -203,6 +204,35 @@ const DAFTAR: Alat[] = [
       } catch (e) {
         return `Radar gagal dibaca: ${(e as Error).message}`;
       }
+    },
+  },
+
+  {
+    skema: {
+      type: "function",
+      function: {
+        name: "baca_berkas",
+        description:
+          "Baca isi satu berkas teks dari mesin ini. Hanya di dalam folder " +
+          "yang diizinkan; berkas rahasia dan berkas biner selalu ditolak. " +
+          "Berkas panjang dipotong, dan pemotongannya disebut di atas isinya.",
+        parameters: {
+          type: "object",
+          properties: {
+            jalur: { type: "string", description: "Jalur berkasnya." },
+          },
+          required: ["jalur"],
+        },
+      },
+    },
+    ringkas: (a) => `Membaca berkas: ${teksArg(a, "jalur")}`,
+    jalankan: (a) => {
+      const hasil = bacaBerkas(teksArg(a, "jalur"));
+      // Kegagalan dikembalikan sebagai TEKS, bukan lemparan: alat yang
+      // melempar menghentikan seluruh giliran agen, sedangkan alat yang
+      // menjawab "tidak bisa karena X" membiarkan model membaca alasannya
+      // dan memberi tahu penggunanya.
+      return hasil.ok ? hasil.teks : hasil.pesan;
     },
   },
 
