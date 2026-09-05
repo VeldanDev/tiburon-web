@@ -59,3 +59,63 @@ describe("keJson", () => {
     expect(j.aplikasi).toBe("Tiburon");
   });
 });
+
+describe("ekspor membawa buktinya, bukan cuma jawabannya", () => {
+  it("menandai jawaban yang dihentikan di tengah jalan", () => {
+    // Tanpa penanda ini, jawaban terputus terbaca di berkas ekspor seolah
+    // lengkap -- dokumen yang berbohong tentang keutuhannya sendiri, dan
+    // tidak ada cara mengetahuinya lagi kemudian.
+    const md = keMarkdown("Uji", [
+      { peran: "user", isi: "tanya" },
+      { peran: "assistant", isi: "setengah jawa", model: "m-1", dihentikan: true },
+    ]);
+    expect(md).toContain("## Tiburon · m-1 · dihentikan");
+  });
+
+  it("jawaban utuh tidak ditandai apa pun", () => {
+    const md = keMarkdown("Uji", [{ peran: "assistant", isi: "utuh", model: "m-1" }]);
+    expect(md).toContain("## Tiburon · m-1");
+    expect(md).not.toContain("dihentikan");
+  });
+
+  it("membawa jejak alat agen, terlipat di bawah jawabannya", () => {
+    // Di jalur Agen, jejaknya JUSTRU buktinya: apa yang dicari, dan apa yang
+    // ditemukan. Ekspor yang membuangnya menyisakan jawaban yang harus
+    // dipercaya begitu saja.
+    const md = keMarkdown("Uji", [
+      {
+        peran: "assistant",
+        isi: "jawaban",
+        jejak: [
+          { nama: "cari_korpus", ringkas: "Mencari korpus: “mimpi rem”" },
+          { nama: "daftar_berkas_korpus", ringkas: "Melihat daftar berkas korpus" },
+        ],
+      },
+    ]);
+    expect(md).toContain("<summary>Jejak alat (2)</summary>");
+    expect(md).toContain("**cari_korpus**");
+    expect(md).toContain("Mencari korpus: “mimpi rem”");
+    // Jawabannya tetap yang pertama dibaca; jejaknya sesudahnya.
+    expect(md.indexOf("jawaban")).toBeLessThan(md.indexOf("Jejak alat"));
+  });
+
+  it("tidak menyisipkan blok jejak kosong di jalur non-agen", () => {
+    const md = keMarkdown("Uji", [{ peran: "assistant", isi: "jawaban" }]);
+    expect(md).not.toContain("<details>");
+  });
+
+  it("JSON membawa keduanya apa adanya", () => {
+    const j = JSON.parse(
+      keJson("Uji", [
+        {
+          peran: "assistant",
+          isi: "x",
+          dihentikan: true,
+          jejak: [{ nama: "cari_korpus", ringkas: "r" }],
+        },
+      ]),
+    );
+    expect(j.pesan[0].dihentikan).toBe(true);
+    expect(j.pesan[0].jejak).toHaveLength(1);
+  });
+});

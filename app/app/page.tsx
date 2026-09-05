@@ -257,6 +257,10 @@ function IsiObrolan() {
       isi: p.isi,
       model: p.model,
       sumber: p.sumber,
+      // Jejak alat dan penanda terputus ikut: keduanya menentukan apakah
+      // jawaban ini bisa dipercaya, bukan hiasan layar.
+      jejak: p.jejak,
+      dihentikan: p.dihentikan,
     }));
 
   /**
