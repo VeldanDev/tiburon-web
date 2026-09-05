@@ -55,7 +55,7 @@ function bacaTambahan(percakapanId?: string): {
 }
 
 export async function POST(req: Request) {
-  let badan: { jalur?: string; pesan?: Pesan[]; percakapan?: string };
+  let badan: { jalur?: string; pesan?: Pesan[]; percakapan?: string; model?: string };
   try {
     badan = await req.json();
   } catch {
@@ -139,7 +139,17 @@ export async function POST(req: Request) {
       const { instruksi, ingatan, jiwa, rantai } = bacaTambahan(
         typeof percakapan === "string" ? percakapan : undefined,
       );
-      for await (const k of kirim(pesan, { konteks, instruksi, ingatan, jiwa, rantai })) {
+      // Model yang dipilih pengguna menang atas rantai persona maupun rantai
+      // bawaan — itu seluruh gunanya memilih. Ia dikirim sebagai rantai
+      // berisi satu nama, bukan sebagai medan terpisah, supaya seluruh
+      // penanganan kegagalan dan failover di bawahnya tidak perlu tahu
+      // bedanya.
+      const dipakai =
+        typeof badan.model === "string" && badan.model.trim()
+          ? [badan.model.trim()]
+          : rantai;
+
+      for await (const k of kirim(pesan, { konteks, instruksi, ingatan, jiwa, rantai: dipakai })) {
         kontrol.enqueue(baris(k));
       }
       kontrol.enqueue(baris({ jenis: "selesai" }));

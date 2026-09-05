@@ -31,6 +31,7 @@ import { SpandukKuota } from "@/components/chat/SpandukKuota";
 import { MenuPerintah, PERINTAH, type Perintah } from "@/components/chat/MenuPerintah";
 import { KartuSumber } from "@/components/chat/KartuSumber";
 import { HitunganKorpus } from "@/components/chat/HitunganKorpus";
+import { PemilihModel } from "@/components/chat/PemilihModel";
 import { Markdown } from "@/components/chat/Markdown";
 import { AksiPesan } from "@/components/chat/AksiPesan";
 import { PesanPengguna } from "@/components/chat/PesanPengguna";
@@ -182,6 +183,14 @@ function KerangkaObrolan() {
 
 function IsiObrolan() {
   const [jalur, setJalur] = useState<Jalur>("cepat");
+  /**
+   * Model yang dipaksa untuk percakapan ini, atau null untuk ikut rantai.
+   *
+   * TIDAK disimpan ke basis data: ini pilihan untuk sesi yang sedang
+   * berjalan, bukan sifat percakapannya. Yang ingin menetap dipasang lewat
+   * persona, yang memang punya rantai modelnya sendiri.
+   */
+  const [modelPilihan, setModelPilihan] = useState<string | null>(null);
   const { jalurAwal, siap: jalurSiap } = useJalurAwal();
   const [pesan, setPesan] = useState<Balasan[]>([]);
   const [teks, setTeks] = useState("");
@@ -622,6 +631,10 @@ function IsiObrolan() {
           // klien yang mengirim isi prompt sistem, siapa pun yang bisa
           // memanggil rute ini bisa menyuntik apa pun ke dalamnya.
           percakapan: idPercakapan,
+          // Model pilihan, kalau ada. Dikirim dari klien dan itu memang tepat:
+          // nama model bukan rahasia dan bukan isi prompt — ia parameter
+          // permintaan, sejenis dengan `jalur`.
+          model: modelPilihan ?? undefined,
           pesan: riwayat.map((p) => ({ role: p.peran, content: p.isi })),
         }),
       });
@@ -1145,6 +1158,7 @@ function IsiObrolan() {
         </button>
         <span className="ml-auto flex items-center gap-3">
           {/* Hitungan cocok hanya berarti di jalur yang membaca korpus. */}
+          <PemilihModel dipilih={modelPilihan} onGanti={setModelPilihan} />
           <HitunganKorpus kueri={teks} aktif={jalur === "tiburon"} />
           <span
             className="angka text-[11px]"
