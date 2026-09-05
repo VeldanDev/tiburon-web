@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from "react";
 import type { TugasTerjadwal } from "@/lib/jadwal";
+import { berbedaDariAsli, jadwalManusiawi } from "@/lib/jadwal-bahasa";
 import { IkonPeringatan } from "@/components/Ikon";
 
 function jam(ms: number | null): string {
@@ -158,8 +159,16 @@ export default function HalamanJadwal() {
                   </div>
                   <div>
                     <dt style={{ color: "var(--redup)" }}>Jadwal</dt>
-                    <dd className="angka truncate" style={{ color: "var(--shell)" }}>
-                      {t.jadwal || "—"}
+                    {/* Terjemahannya di depan, ekspresi aslinya tetap ada di
+                        tooltip. Jadwal justru diperiksa orang saat curiga ada
+                        yang salah, jadi bentuk mentahnya tidak boleh hilang —
+                        cuma tidak perlu jadi yang pertama dibaca. */}
+                    <dd
+                      className="truncate"
+                      style={{ color: "var(--shell)" }}
+                      title={berbedaDariAsli(t.jadwal) ? t.jadwal : undefined}
+                    >
+                      {jadwalManusiawi(t.jadwal) || "—"}
                     </dd>
                   </div>
                 </dl>
@@ -181,7 +190,12 @@ export default function HalamanJadwal() {
                   style={{ color: "var(--redup)" }}
                 >
                   <span>{t.nama}</span>
-                  <span className="angka text-[12px]">{t.jadwal}</span>
+                  <span
+                    className="text-[12px]"
+                    title={berbedaDariAsli(t.jadwal) ? t.jadwal : undefined}
+                  >
+                    {jadwalManusiawi(t.jadwal)}
+                  </span>
                 </div>
               ))}
             </div>
