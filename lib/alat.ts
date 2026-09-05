@@ -34,6 +34,7 @@ import type { Tindakan as TindakanIzin } from "@/lib/izin";
 import { bacaBerkas } from "@/lib/baca-berkas";
 import { bacaRadar } from "@/lib/radar-parser";
 import { ringkasSumber } from "@/lib/sumber-terpakai";
+import { suntingHasilAlat } from "@/lib/redaksi";
 
 /** Skema alat dalam format OpenAI/OpenRouter function calling. */
 export type SkemaAlat = {
@@ -329,8 +330,15 @@ export async function jalankanAlat(
     return `Alat "${nama}" tidak ada. Yang tersedia: ${SKEMA_ALAT.map((s) => s.function.name).join(", ")}.`;
   }
   try {
-    return await alat.jalankan(uraiArgumen(argumenJson), ctx);
+    // Disunting DI SINI, di satu titik yang dilewati semua alat, bukan di tiap
+    // alat masing-masing. Alat tulis dan alat perintah yang belum ada nanti
+    // ikut terlindungi tanpa penulisnya perlu mengingat apa pun — dan pagar
+    // keamanan yang harus diingat berulang kali adalah pagar yang suatu hari
+    // akan terlupakan.
+    return suntingHasilAlat(await alat.jalankan(uraiArgumen(argumenJson), ctx));
   } catch (e) {
-    return `Alat "${nama}" gagal: ${(e as Error).message}`;
+    // Pesan galat pun disunting: pustaka yang gagal sering mengutip URL
+    // lengkapnya, dan token di dalam kueri ikut terbawa ke situ.
+    return suntingHasilAlat(`Alat "${nama}" gagal: ${(e as Error).message}`);
   }
 }
