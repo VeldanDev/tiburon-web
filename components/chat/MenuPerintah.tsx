@@ -42,6 +42,11 @@ export const PERINTAH: Perintah[] = [
     isi: "/btw ",
   },
   {
+    kunci: "/undo",
+    ringkas: "Batalkan giliran terakhir — pertanyaan dan jawabannya dibuang",
+    isi: "/undo",
+  },
+  {
     kunci: "/sumber",
     ringkas: "Cari berkas di korpus tanpa bertanya ke model",
     jalur: "tiburon",

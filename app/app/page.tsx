@@ -741,6 +741,14 @@ function IsiObrolan() {
       return;
     }
 
+    // /undo juga dikenali sebelum apa pun dikirim: tidak ada gunanya
+    // memanggil model untuk sesuatu yang justru membuang giliran terakhir.
+    if (/^\s*\/undo\s*$/i.test(teks)) {
+      setTeks("");
+      await batalkanGiliran();
+      return;
+    }
+
     // Isi lampiran disatukan ke dalam pesan SEBELUM dikirim, dan pesan gabungan
     // itulah yang disimpan ke riwayat. Kalau yang disimpan cuma pertanyaannya,
     // memuat ulang percakapan akan menghasilkan jawaban yang merujuk berkas
@@ -784,6 +792,39 @@ function IsiObrolan() {
     if (sibuk) return;
     const sebelumnya = pesan.slice(0, indeks);
     await jalankan(baru, [...sebelumnya, { peran: "user", isi: baru }]);
+  }
+
+  /**
+   * Batalkan giliran terakhir — di layar DAN di basis data.
+   *
+   * Optimistis seperti aksi sidebar lainnya, dan dipulihkan persis kalau
+   * gagal: antarmuka optimistis yang tidak memulihkan diri saat gagal adalah
+   * antarmuka yang berbohong.
+   */
+  async function batalkanGiliran() {
+    if (sibuk || pesan.length === 0 || !idPercakapan) return;
+
+    const sebelum = pesan;
+    // Aturan yang sama seperti di server: jawaban di ujung membawa serta
+    // pertanyaannya; pertanyaan di ujung pergi sendiri.
+    const buang =
+      pesan[pesan.length - 1].peran === "assistant" &&
+      pesan[pesan.length - 2]?.peran === "user"
+        ? 2
+        : 1;
+    setPesan(pesan.slice(0, -buang));
+
+    try {
+      const r = await fetch("/api/percakapan", {
+        method: "PATCH",
+        body: JSON.stringify({ id: idPercakapan, undo: true }),
+      });
+      if (!r.ok) throw new Error((await r.json()).pesan ?? `HTTP ${r.status}`);
+      setGalatSimpan("");
+    } catch (e) {
+      setPesan(sebelum);
+      setGalatSimpan(`Batal gagal: ${(e as Error).message}`);
+    }
   }
 
   /**

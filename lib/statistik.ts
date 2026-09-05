@@ -90,7 +90,11 @@ function hitungStreak(tanggal: string[], hariIni: string): { kini: number; panja
   return { kini, panjang };
 }
 
-export function hitungStatistik(dbPath = dbStat(), sekarang = Date.now()): Statistik {
+export function hitungStatistik(
+  dbPath = dbStat(),
+  sekarang = Date.now(),
+  rentangHari = HARI_PETA,
+): Statistik {
   const db = buka(dbPath);
   try {
     const { np } = db.prepare("SELECT COUNT(*) AS np FROM percakapan").get() as { np: number };
@@ -131,7 +135,7 @@ export function hitungStatistik(dbPath = dbStat(), sekarang = Date.now()): Stati
     // termasuk yang kosong. Melewati hari kosong akan memampatkan kisinya dan
     // membuat jeda seminggu terlihat sama dengan jeda sehari.
     const harian: { tanggal: string; jumlah: number }[] = [];
-    for (let i = HARI_PETA - 1; i >= 0; i--) {
+    for (let i = rentangHari - 1; i >= 0; i--) {
       const t = hari(sekarang - i * 86_400_000);
       harian.push({ tanggal: t, jumlah: perHari.get(t) ?? 0 });
     }
@@ -143,6 +147,7 @@ export function hitungStatistik(dbPath = dbStat(), sekarang = Date.now()): Stati
       hariAktif: tanggalAktif.length,
       streakSaatIni: kini,
       streakTerpanjang: panjang,
+      hari: rentangHari,
       jamPuncak: baris.length ? perJam.indexOf(Math.max(...perJam)) : null,
       modelTeratas,
       jawabanTanpaModel: tanpaModel,

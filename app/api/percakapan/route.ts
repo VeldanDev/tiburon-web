@@ -6,6 +6,7 @@ import {
   ambilPercakapan,
   daftarPercakapan,
   gantiJudul,
+  batalkanGiliranTerakhir,
   hapusPercakapan,
   setSemat,
   cariPercakapan,
@@ -43,6 +44,7 @@ async function bacaObjek(req: Request): Promise<{ nilai?: Record<string, unknown
  *   GET  /api/percakapan?id=xxx   -> isi satu percakapan
  *   POST { judul }                -> buat percakapan, balas { id }
  *   PUT  { id, pesan }            -> tambah satu pesan (pesan.model opsional)
+ *   PATCH { id, undo: true }      -> batalkan giliran terakhir
  */
 export async function GET(req: Request) {
   const param = new URL(req.url).searchParams;
@@ -112,11 +114,28 @@ export async function PATCH(req: Request) {
   const { nilai: badan, galat } = await bacaObjek(req);
   if (galat) return galat;
 
-  const { id, judul, disemat } = badan as {
+  const { id, judul, disemat, undo } = badan as {
     id?: unknown;
     judul?: unknown;
     disemat?: unknown;
+    undo?: unknown;
   };
+
+  // Membatalkan giliran terakhir. PATCH, bukan DELETE: yang dibuang BAGIAN
+  // dari percakapan, bukan percakapannya — dan DELETE di rute ini sudah
+  // berarti membuang seluruhnya. Dua arti untuk satu kata kerja di satu
+  // rute adalah cara paling mudah kehilangan percakapan karena salah
+  // satu parameter.
+  if (typeof id === "string" && undo === true) {
+    try {
+      return Response.json(batalkanGiliranTerakhir(id));
+    } catch (e) {
+      return Response.json(
+        { pesan: `Gagal membatalkan: ${(e as Error).message}` },
+        { status: 500 },
+      );
+    }
+  }
 
   // Menyematkan dan mengganti judul berbagi satu rute karena keduanya adalah
   // "ubah sebagian dari satu percakapan" — itulah arti PATCH.
