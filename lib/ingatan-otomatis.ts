@@ -26,6 +26,7 @@
  */
 import type { Pesan } from "@/lib/penyedia";
 import { RANTAI_BAWAAN } from "@/lib/penyedia";
+import { amanUntukPrompt } from "@/lib/pindai-injeksi";
 
 /**
  * Tiap berapa pesan kurasi dijalankan.
@@ -144,6 +145,12 @@ export function saringCalon(calon: string[], sudahAda: string[]): string[] {
     const isi = bersihkan(mentah);
     if (!isi || isi.toUpperCase() === "TIDAK ADA") continue;
     if (isi.length > BATAS_SATU_BUTIR) continue;
+    // Ingatan ikut ke prompt sistem di SETIAP permintaan, selamanya, tanpa
+    // Veldan melihat prosesnya — dan bahannya adalah isi percakapan, yang
+    // memuat lampiran, teks tempelan, dan potongan korpus berisi kutipan
+    // orang lain. Satu kalimat injeksi yang lolos ke sini jadi bagian tetap
+    // dari siapa Tiburon.
+    if (!amanUntukPrompt(isi)) continue;
     if (sudahAda.some((s) => serupa(s, isi))) continue;
     if (hasil.some((s) => serupa(s, isi))) continue;
     if (isi.length > anggaran) break;
