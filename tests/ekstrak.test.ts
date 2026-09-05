@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
 import { buangBerulang, ekstrak, rapikan } from "@/lib/ekstrak";
+import { buatPembaca } from "@/lib/ocr";
 
 const CONTOH = path.join(process.cwd(), "data", "uji-kantor-docs");
 
@@ -150,4 +151,43 @@ describe("ekstrak — .xls lama", () => {
     expect(h.ok).toBe(false);
     if (!h.ok) expect(h.sebab).toContain(".xlsx");
   });
+});
+
+describe("ekstrak — OCR", () => {
+  it("tanpa OCR, PDF pindai ditolak dengan cara menyalakannya", async () => {
+    // Pesan yang cuma bilang "butuh OCR" membuat yang memasang buntu. Yang
+    // menyebut benderanya menyelesaikannya dalam satu perintah.
+    const h = await ekstrak(path.join(CONTOH, "pindai-asli.pdf"));
+    expect(h.ok).toBe(false);
+    if (!h.ok) expect(h.sebab).toContain("--ocr");
+  });
+
+  it("dengan OCR, tulisan di PDF pindai benar-benar terbaca", async () => {
+    const pembaca = buatPembaca();
+    try {
+      const h = await ekstrak(path.join(CONTOH, "pindai-asli.pdf"), { ocr: pembaca });
+      expect(h.ok).toBe(true);
+      if (!h.ok) return;
+      expect(h.teks).toContain("GARANSI");
+      // Nomor dokumen adalah yang paling sering dicari dari surat pindai, dan
+      // yang paling mudah rusak kalau renderannya terlalu kecil.
+      expect(h.teks).toContain("042/SK/DIR/VII/2026");
+      expect(h.catatan).toContain("OCR");
+    } finally {
+      await pembaca.tutup();
+    }
+  }, 120_000);
+
+  it("halaman yang benar-benar kosong dibedakan dari yang belum di-OCR", async () => {
+    // Tindak lanjutnya berbeda: yang satu perlu dinyalakan, yang satu perlu
+    // dipindai ulang. Pesan yang sama untuk keduanya menyesatkan.
+    const pembaca = buatPembaca();
+    try {
+      const h = await ekstrak(path.join(CONTOH, "pindai.pdf"), { ocr: pembaca });
+      expect(h.ok).toBe(false);
+      if (!h.ok) expect(h.sebab).toContain("perlu diulang");
+    } finally {
+      await pembaca.tutup();
+    }
+  }, 120_000);
 });

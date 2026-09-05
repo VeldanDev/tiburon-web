@@ -51,6 +51,12 @@ if (!folder || folder === "--bantuan" || folder === "-h") {
   process.exit(folder ? 0 : 1);
 }
 
+// OCR sengaja tidak menyala sendiri: satu halaman pindai butuh 1-3 detik,
+// dan data bahasanya diunduh saat pertama dipakai. Dinyalakan setelah
+// pengindeksan pertama menunjukkan berapa banyak berkas pindai yang ada —
+// jadi ongkosnya diketahui sebelum dibayar.
+const ocr = argumen.includes("--ocr");
+
 const iKe = argumen.indexOf("--ke");
 const tujuan = path.resolve(
   iKe !== -1 && argumen[iKe + 1] ? argumen[iKe + 1] : path.join("data", "korpus.sqlite"),
@@ -64,7 +70,7 @@ let ringkasan;
 try {
   // Tiap berkas dilaporkan saat diproses. Pada arsip besar, perintah yang diam
   // selama dua menit tidak bisa dibedakan dari perintah yang menggantung.
-  ringkasan = await bangunIndeks(folder, tujuan, (p) => console.log(`  ${p}`));
+  ringkasan = await bangunIndeks(folder, tujuan, (p) => console.log(`  ${p}`), { ocr });
 } catch (e) {
   console.error(`\nGagal: ${e.message}`);
   process.exit(1);

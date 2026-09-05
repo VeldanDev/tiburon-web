@@ -34,6 +34,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type ExcelJS from "exceljs";
+import { BATAS_HALAMAN, SKALA, type Pembaca } from "@/lib/ocr";
 
 export type HasilEkstrak =
   | { ok: true; teks: string; catatan?: string }
@@ -49,6 +50,9 @@ export const EKSTENSI_KANTOR = new Set(["pdf", "docx", "xlsx", "xlsm", "xls", "c
  * dari lapisan teks yang gagal, dan ambang nol akan meloloskannya.
  */
 const MIN_KARAKTER_PDF = 60;
+
+/** Pemisah antar halaman hasil OCR. */
+const NEWLINE_GANDA = "\n\n";
 
 /**
  * Buang baris yang muncul berulang di banyak halaman.
@@ -103,7 +107,7 @@ const PENANDA_HALAMAN = /^\s*--\s*\d+\s+of\s+\d+\s*--\s*$/gm;
 
 type HasilPdf = { text?: string; total?: number };
 
-async function dariPdf(mentah: Buffer): Promise<HasilEkstrak> {
+async function dariPdf(mentah: Buffer, ocr?: Pembaca): Promise<HasilEkstrak> {
   let hasil: HasilPdf;
   try {
     // pdf-parse v2 memakai kelas, bukan fungsi. Bentuk ekspornya diperiksa
@@ -131,14 +135,78 @@ async function dariPdf(mentah: Buffer): Promise<HasilEkstrak> {
   const tanpaPenanda = (hasil.text ?? "").replace(PENANDA_HALAMAN, "");
   const bersih = rapikan(buangBerulang(tanpaPenanda, hasil.total ?? 1));
   if (bersih.length < MIN_KARAKTER_PDF) {
-    // Aturan 2. Ini kasus paling sering di arsip kantor Indonesia, dan yang
-    // paling membingungkan kalau didiamkan.
+    // Tidak ada lapisan teks. Kalau OCR dinyalakan, halamannya dirender lalu
+    // dibaca; kalau tidak, dilaporkan DENGAN CARA MENYALAKANNYA.
+    if (ocr) return await ocrPdf(mentah, ocr);
     return {
       ok: false,
-      sebab: `PDF ini hasil pindai (tidak ada lapisan teks) — butuh OCR dulu sebelum bisa diindeks`,
+      sebab:
+        "PDF ini hasil pindai (tidak ada lapisan teks) — jalankan ulang dengan --ocr untuk membacanya",
     };
   }
   return { ok: true, teks: bersih, catatan: `${hasil.total ?? 1} halaman` };
+}
+
+type HalamanGambar = { data: Uint8Array; pageNumber: number };
+
+/**
+ * Baca PDF pindai dengan merender tiap halaman lalu meng-OCR-nya.
+ *
+ * Halaman diproses BERURUTAN, bukan serentak. OCR memakai CPU penuh; sepuluh
+ * halaman sekaligus tidak lebih cepat, tapi membuat mesin klien tidak bisa
+ * dipakai apa-apa selama pengindeksan berjalan.
+ */
+async function ocrPdf(mentah: Buffer, ocr: Pembaca): Promise<HasilEkstrak> {
+  let halaman: HalamanGambar[];
+  try {
+    const { PDFParse } = (await import("pdf-parse")) as unknown as {
+      PDFParse: new (o: { data: Uint8Array }) => {
+        getScreenshot: (o?: { scale?: number }) => Promise<{ pages?: HalamanGambar[] }>;
+        destroy?: () => Promise<void>;
+      };
+    };
+    const parser = new PDFParse({ data: new Uint8Array(mentah) });
+    try {
+      const ss = await parser.getScreenshot({ scale: SKALA });
+      halaman = ss.pages ?? [];
+    } finally {
+      await parser.destroy?.();
+    }
+  } catch (e) {
+    return { ok: false, sebab: `halaman PDF tidak bisa dirender: ${(e as Error).message}` };
+  }
+
+  if (!halaman.length) return { ok: false, sebab: "PDF ini tidak punya halaman yang bisa dirender" };
+
+  const dipakai = halaman.slice(0, BATAS_HALAMAN);
+  const bagian: string[] = [];
+  for (const h of dipakai) {
+    try {
+      const teks = (await ocr.baca(h.data)).trim();
+      if (teks) bagian.push(teks);
+    } catch (e) {
+      // Satu halaman yang gagal tidak membatalkan halaman lainnya; yang
+      // terbaca tetap masuk indeks.
+      bagian.push(`[halaman ${h.pageNumber}: gagal dibaca — ${(e as Error).message}]`);
+    }
+  }
+
+  const gabung = rapikan(buangBerulang(bagian.join(NEWLINE_GANDA), dipakai.length));
+  if (gabung.length < MIN_KARAKTER_PDF) {
+    // OCR jalan tapi tidak menemukan apa pun: halamannya foto, gambar teknis,
+    // atau pindaian yang terlalu buruk. Dibedakan dari "belum di-OCR", karena
+    // tindak lanjutnya berbeda — yang ini perlu dipindai ulang, bukan dinyalakan.
+    return { ok: false, sebab: "OCR tidak menemukan teks yang terbaca — pindaiannya perlu diulang" };
+  }
+
+  const sisa = halaman.length - dipakai.length;
+  return {
+    ok: true,
+    teks: gabung,
+    // Ditandai hasil OCR: jawaban dari sumber OCR pantas dipercaya sedikit
+    // lebih rendah, dan yang membaca log berhak tahu asalnya.
+    catatan: `hasil OCR, ${dipakai.length} halaman` + (sisa > 0 ? `, ${sisa} halaman sisanya dilewati` : ""),
+  };
 }
 
 async function dariDocx(jalur: string): Promise<HasilEkstrak> {
@@ -336,7 +404,7 @@ function dariCsv(mentah: string, pemisahPaksa?: string): HasilEkstrak {
  * TIDAK PERNAH melempar — semua kegagalan jadi `{ ok: false, sebab }`, supaya
  * satu berkas rusak tidak membatalkan pengindeksan seluruh arsip.
  */
-export async function ekstrak(jalur: string): Promise<HasilEkstrak> {
+export async function ekstrak(jalur: string, opsi?: { ocr?: Pembaca }): Promise<HasilEkstrak> {
   const ext = path.extname(jalur).slice(1).toLowerCase();
   if (!EKSTENSI_KANTOR.has(ext)) {
     return { ok: false, sebab: `format .${ext} bukan urusan berkas ini` };
@@ -358,7 +426,7 @@ export async function ekstrak(jalur: string): Promise<HasilEkstrak> {
         sebab: "format .xls lama — buka di Excel lalu Save As .xlsx, setelah itu bisa diindeks",
       };
     }
-    return await dariPdf(fs.readFileSync(jalur));
+    return await dariPdf(fs.readFileSync(jalur), opsi?.ocr);
   } catch (e) {
     return { ok: false, sebab: (e as Error).message };
   }
