@@ -39,6 +39,7 @@ const LAINNYA: { sebelum: Pintasan[]; sesudah: Pintasan[] } = {
   ],
   sesudah: [
     { tombol: ["/"], arti: "Buka menu perintah" },
+    { tombol: ["/btw"], arti: "Tanya tentang obrolan ini tanpa menambahkannya ke riwayat" },
     { tombol: ["?"], arti: "Buka daftar ini" },
   ],
 };
