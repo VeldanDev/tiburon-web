@@ -47,6 +47,13 @@ export const PERINTAH: Perintah[] = [
     isi: "/undo",
   },
   {
+    kunci: "/lamar",
+    // Sama seperti /btw: tidak memindahkan jalur, tidak membuka halaman.
+    // Iklan lowongan ditempel setelahnya, lalu dikenali saat dikirim.
+    ringkas: "Tempel iklan lowongan — dinilai layak atau tidak, lalu ditulis lamarannya",
+    isi: "/lamar ",
+  },
+  {
     kunci: "/sumber",
     ringkas: "Cari berkas di korpus tanpa bertanya ke model",
     jalur: "tiburon",
