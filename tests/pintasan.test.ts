@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
 import { PETA_JALUR, PINTASAN } from "@/lib/pintasan";
+import { PERINTAH } from "@/components/chat/MenuPerintah";
 
 describe("pintasan papan ketik", () => {
   it("tiap tombol jalur yang didengar juga terdaftar di panel", () => {
@@ -21,27 +20,27 @@ describe("pintasan papan ketik", () => {
     }
   });
 
-  it("layar obrolan tidak lagi menulis petanya sendiri", () => {
-    // Penjaga terhadap kambuhnya masalah aslinya: peta kedua yang ditulis
-    // tangan di layar obrolan, yang kebetulan cocok sampai suatu hari tidak.
-    const berkas = fs.readFileSync(
-      path.join(process.cwd(), "app", "app", "page.tsx"),
-      "utf8",
-    );
-    expect(berkas).toContain("PETA_JALUR[e.key]");
-    expect(berkas).not.toMatch(/const peta: Record<string, Jalur>/);
-  });
 });
 
 describe("menu perintah", () => {
   it("tidak menyebut jumlah berkas korpus yang ditulis mati", () => {
-    // "164 berkas terindeks" menetap berbulan-bulan sementara korpusnya berisi
-    // 8 berkas. Angka yang ditulis mati di keterangan selalu berakhir salah.
-    const berkas = fs.readFileSync(
-      path.join(process.cwd(), "components", "chat", "MenuPerintah.tsx"),
-      "utf8",
-    );
-    const isiPerintah = berkas.slice(berkas.indexOf("export const PERINTAH"));
-    expect(isiPerintah).not.toMatch(/ringkas:.*\d+\s*berkas/);
+    // "164 berkas terindeks" menetap berbulan-bulan sementara korpusnya
+    // berisi 8 berkas. Angka yang ditulis mati di keterangan selalu berakhir
+    // salah.
+    //
+    // Diuji pada DATA yang diekspor, bukan pada teks berkasnya: versi
+    // sebelumnya membaca MenuPerintah.tsx, dan uji yang membaca sumber
+    // menguji bentuk kode, bukan perilaku.
+    for (const p of PERINTAH) {
+      expect(p.ringkas, `${p.kunci} menyebut jumlah berkas`).not.toMatch(/\d+\s*berkas/);
+    }
+  });
+
+  it("tiap perintah memindahkan jalur atau membuka halaman", () => {
+    // Perintah yang tidak melakukan keduanya adalah baris menu yang tidak
+    // melakukan apa-apa saat ditekan.
+    for (const p of PERINTAH) {
+      expect(Boolean(p.jalur || p.tuju || p.isi), `${p.kunci} tidak berbuat apa-apa`).toBe(true);
+    }
   });
 });

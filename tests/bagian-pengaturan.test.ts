@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
-import { ID_BAGIAN, jalurBagian, sahihBagian } from "@/lib/bagian-pengaturan";
+import { BAGIAN, ID_BAGIAN, jalurBagian, sahihBagian } from "@/lib/bagian-pengaturan";
 
 describe("sahihBagian", () => {
   it("menerima tiap id yang terdaftar", () => {
@@ -38,15 +36,20 @@ describe("jalurBagian", () => {
   });
 });
 
-describe("halaman pengaturan", () => {
-  it("mendaftarkan setiap bagian di rel kirinya", () => {
-    // Tipe IdBagian mencegah id yang SALAH masuk ke rel, tapi tidak mencegah
-    // sebuah bagian LUPA didaftarkan -- dan bagian yang tidak punya barisnya
-    // hanya bisa dicapai lewat URL yang diketik tangan.
-    const berkas = fs.readFileSync(
-      path.join(process.cwd(), "app", "app", "pengaturan", "page.tsx"),
-      "utf8",
-    );
-    for (const id of ID_BAGIAN) expect(berkas).toContain(`id: "${id}"`);
+describe("daftar bagian", () => {
+  it("tiap id punya barisnya di rel navigasi", () => {
+    // Dulu ini uji yang MEMBACA page.tsx dan mencari `id: "..."`. Itu menguji
+    // bentuk kode, bukan perilaku. Sekarang halamannya membangun relnya DARI
+    // BAGIAN, jadi bagian yang tidak terdaftar tidak lagi bisa ada — dan yang
+    // tersisa untuk diuji cuma hubungan antara dua data ini.
+    for (const id of ID_BAGIAN) {
+      expect(BAGIAN.find((b) => b.id === id), `${id} tidak punya label`).toBeTruthy();
+    }
+  });
+
+  it("tidak ada label untuk bagian yang tidak ada", () => {
+    for (const b of BAGIAN) {
+      expect(ID_BAGIAN as readonly string[]).toContain(b.id);
+    }
   });
 });

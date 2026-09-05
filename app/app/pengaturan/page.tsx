@@ -30,21 +30,22 @@ import {
 import { PemilihTema } from "@/components/PemilihTema";
 import { PINTASAN } from "@/lib/pintasan";
 import { RANTAI_BAWAAN } from "@/lib/penyedia";
-import { jalurBagian, sahihBagian, type IdBagian } from "@/lib/bagian-pengaturan";
+import { BAGIAN, jalurBagian, sahihBagian, type IdBagian } from "@/lib/bagian-pengaturan";
 
 type Ingatan = { id: string; isi: string; dibuat: number; otomatis?: boolean };
 
-const BAGIAN: {
-  id: IdBagian;
-  label: string;
-  Ikon: (p: { ukuran?: number }) => React.ReactElement;
-}[] = [
-  { id: "tampilan", label: "Tampilan", Ikon: IkonLayar },
-  { id: "instruksi", label: "Instruksi khusus", Ikon: IkonSunting },
-  { id: "ingatan", label: "Ingatan", Ikon: IkonPelampung },
-  { id: "pintasan", label: "Pintasan", Ikon: IkonPintasan },
-  { id: "tentang", label: "Tentang", Ikon: IkonTiburon },
-];
+/**
+ * Ikon per bagian. Record<IdBagian, ...> disengaja, bukan objek biasa:
+ * menambah bagian tanpa memberinya ikon jadi galat kompilasi, bukan bagian
+ * yang diam-diam tampil tanpa ikon.
+ */
+const IKON: Record<IdBagian, (p: { ukuran?: number }) => React.ReactElement> = {
+  tampilan: IkonLayar,
+  instruksi: IkonSunting,
+  ingatan: IkonPelampung,
+  pintasan: IkonPintasan,
+  tentang: IkonTiburon,
+};
 
 /** Judul + satu kalimat alasan. Tiap bagian dibuka dengan bentuk yang sama. */
 function Kepala({ judul, alasan }: { judul: string; alasan: string }) {
@@ -211,7 +212,7 @@ function IsiPengaturan() {
                   transition: "height 200ms var(--keluar)",
                 }}
               />
-              <b.Ikon ukuran={15} />
+              {IKON[b.id]({ ukuran: 15 })}
               {b.label}
             </button>
           );
@@ -239,7 +240,7 @@ function IsiPengaturan() {
                   : { color: "var(--teks-redup)" }
               }
             >
-              <b.Ikon ukuran={14} />
+              {IKON[b.id]({ ukuran: 14 })}
               {b.label}
             </button>
           ))}
