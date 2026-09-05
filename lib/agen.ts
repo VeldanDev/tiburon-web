@@ -22,6 +22,7 @@ export type KejadianAgen =
   | { jenis: "model"; nama: string }
   | { jenis: "alat-mulai"; nama: string; ringkas: string }
   | { jenis: "alat-selesai"; nama: string; hasil: string }
+  | { jenis: "sumber"; berkas: string[]; kueri: string }
   | { jenis: "teks"; teks: string }
   | { jenis: "gagal"; pesan: string };
 
@@ -123,6 +124,18 @@ export async function* jalankanAgen(
     // bersama, model kedua mewarisi tool_calls milik model pertama yang gagal
     // di tengah — dan API menolak pesan `tool` yang tidak punya panggilan
     // pasangannya di giliran sebelumnya.
+    // Dikumpulkan LINTAS PUTARAN, dan diumumkan sekali di akhir.
+    //
+    // Sekali, bukan tiap panggilan alat: layar obrolan mencatat tiap
+    // kejadian sumber ke Riwayat sumber, jadi memancarkannya lima kali
+    // membuat satu jawaban terhitung lima kali di sana.
+    //
+    // Per model, bukan di luar gelung rantai: kalau model pertama gagal di
+    // tengah, berkas yang sempat dibacanya bukan sumber jawaban yang
+    // akhirnya diberikan model kedua.
+    const sumber = new Set<string>();
+    const kueriDipakai = new Set<string>();
+
     const pesan: PesanAlat[] = [
       // Persona agen menggantikan persona obrolan, tapi ingatan dan instruksi
       // tetap ikut: keduanya berlaku di mode mana pun.
@@ -149,6 +162,7 @@ export async function* jalankanAgen(
             // gelembung kosong adalah kegagalan senyap.
             throw new Error("balasan kosong");
           }
+          if (sumber.size) yield { jenis: "sumber", berkas: [...sumber], kueri: [...kueriDipakai].join(" ") };
           yield { jenis: "teks", teks: hasil.isi };
           return;
         }
@@ -174,7 +188,10 @@ export async function* jalankanAgen(
           if (opsi.signal?.aborted) return;
 
           yield { jenis: "alat-mulai", nama: p.nama, ringkas: ringkasPanggilan(p.nama, p.argumen) };
-          const keluaran = jalankanAlat(p.nama, p.argumen);
+          const keluaran = jalankanAlat(p.nama, p.argumen, (berkas, kueri) => {
+            for (const f of berkas) sumber.add(f);
+            kueriDipakai.add(kueri);
+          });
           yield { jenis: "alat-selesai", nama: p.nama, hasil: keluaran };
 
           pesan.push({ role: "tool", tool_call_id: p.id, content: keluaran });
@@ -183,6 +200,7 @@ export async function* jalankanAgen(
 
       // Batas putaran tercapai. Dikatakan terus terang, bukan didiamkan:
       // jawaban yang berhenti tanpa penjelasan terbaca sebagai kerusakan.
+      if (sumber.size) yield { jenis: "sumber", berkas: [...sumber], kueri: [...kueriDipakai].join(" ") };
       yield {
         jenis: "teks",
         teks:

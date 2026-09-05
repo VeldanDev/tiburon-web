@@ -47,9 +47,29 @@ export type SkemaAlat = {
   };
 };
 
+/**
+ * Dipanggil alat yang membaca korpus, dengan berkas yang dibacanya DAN
+ * kueri yang dipakainya.
+ *
+ * Kuerinya ikut karena kartu sumber mencari ulang potongannya untuk
+ * ditampilkan. Agen memakai kueri hasil rumusannya sendiri, bukan
+ * pertanyaan mentah penggunanya, jadi mencari ulang dengan pertanyaan asli
+ * bisa membuka kartu yang kosong — kegagalan senyap tepat di fitur yang
+ * ada untuk membuktikan jawabannya.
+ */
+type Lapor = (berkas: string[], kueri: string) => void;
+
 type Alat = {
   skema: SkemaAlat;
-  jalankan: (arg: Record<string, unknown>) => string;
+  /**
+   * `lapor` dipanggil dengan label berkas korpus yang benar-benar dibaca.
+   *
+   * Ada supaya jalur Agen bisa menyebut sumbernya seperti jalur Tiburon.
+   * Tanpa ini, jalur yang paling banyak membaca korpus justru satu-satunya
+   * yang jawabannya tidak bisa diperiksa: tidak ada chip sumber, tidak ada
+   * yang bisa dibuka, dan tidak ada yang tercatat di Riwayat sumber.
+   */
+  jalankan: (arg: Record<string, unknown>, lapor?: Lapor) => string;
   /** Ringkasan satu baris untuk ditampilkan di antarmuka. */
   ringkas: (arg: Record<string, unknown>) => string;
 };
@@ -79,7 +99,7 @@ const DAFTAR: Alat[] = [
       },
     },
     ringkas: (a) => `Mencari korpus: “${teksArg(a, "kueri")}”`,
-    jalankan: (a) => {
+    jalankan: (a, lapor) => {
       const kueri = teksArg(a, "kueri").trim();
       if (!kueri) return "Kueri kosong.";
 
@@ -94,6 +114,7 @@ const DAFTAR: Alat[] = [
         // sendiri tidak punya cara membedakan ketiganya.
         const label = petaLabel(daftarBerkas().map((x) => x.path));
         if (hasil.length === 0) return `Tidak ada yang cocok dengan "${kueri}" di korpus.`;
+        lapor?.([...new Set(hasil.map((h) => label.get(h.path) ?? h.path))], kueri);
         return hasil
           .map((h) => {
             const nama = label.get(h.path) ?? h.path;
@@ -245,7 +266,11 @@ function uraiArgumen(json: string): Record<string, unknown> {
   }
 }
 
-export function jalankanAlat(nama: string, argumenJson: string): string {
+export function jalankanAlat(
+  nama: string,
+  argumenJson: string,
+  lapor?: Lapor,
+): string {
   const alat = DAFTAR.find((a) => a.skema.function.name === nama);
   if (!alat) {
     // Model kadang mengarang nama alat. Dijawab sebagai HASIL, bukan galat,
@@ -253,7 +278,7 @@ export function jalankanAlat(nama: string, argumenJson: string): string {
     return `Alat "${nama}" tidak ada. Yang tersedia: ${SKEMA_ALAT.map((s) => s.function.name).join(", ")}.`;
   }
   try {
-    return alat.jalankan(uraiArgumen(argumenJson));
+    return alat.jalankan(uraiArgumen(argumenJson), lapor);
   } catch (e) {
     return `Alat "${nama}" gagal: ${(e as Error).message}`;
   }
