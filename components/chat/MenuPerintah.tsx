@@ -35,6 +35,13 @@ export const PERINTAH: Perintah[] = [
   { kunci: "/kode", ringkas: "Turun ke dasar — tools dan exec lewat gateway", jalur: "kode" },
   { kunci: "/radar", ringkas: "Buka laporan radar pagi", tuju: "/app/radar" },
   {
+    kunci: "/btw",
+    // Satu-satunya perintah yang tidak memindahkan jalur dan tidak membuka
+    // halaman: ia mengisi komposer, lalu dikenali saat dikirim.
+    ringkas: "Tanya TENTANG obrolan ini tanpa menambahkannya ke riwayat",
+    isi: "/btw ",
+  },
+  {
     kunci: "/sumber",
     ringkas: "Cari berkas di korpus tanpa bertanya ke model",
     jalur: "tiburon",

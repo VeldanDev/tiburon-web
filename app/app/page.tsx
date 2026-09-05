@@ -23,6 +23,7 @@ import { PemilihJalur, type Jalur } from "@/components/chat/PemilihJalur";
 import { useJalurAwal } from "@/components/JalurAwal";
 import { PETA_JALUR } from "@/lib/pintasan";
 import { TIAP_PESAN } from "@/lib/ingatan-otomatis";
+import { baca as bacaBtw } from "@/lib/tanya-samping";
 import { PengukurKedalaman } from "@/components/chat/PengukurKedalaman";
 import { SaljuLaut } from "@/components/chat/SaljuLaut";
 import { Sonar } from "@/components/chat/Sonar";
@@ -54,6 +55,7 @@ import {
   IkonRadar,
   IkonTiburon,
   IkonTurun,
+  IkonTutup,
 } from "@/components/Ikon";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -201,6 +203,16 @@ function IsiObrolan() {
   // berikutnya berhasil. Gagal sekali karena jaringan tersendat lalu pulih
   // tidak boleh meninggalkan spanduk merah yang menetap selamanya.
   const [galatSimpan, setGalatSimpan] = useState("");
+  /**
+   * Pertanyaan sampingan yang sedang/baru dijawab.
+   *
+   * Terpisah dari `pesan` dengan sengaja: begitu ia masuk ke sana, ia ikut
+   * tersimpan, ikut terekspor, dan ikut jadi bahan kurasi ingatan — dan
+   * seluruh gunanya justru supaya tidak.
+   */
+  const [samping, setSamping] = useState<{ tanya: string; jawab: string; sibuk: boolean } | null>(
+    null,
+  );
   const [mencariKorpus, setMencariKorpus] = useState(false);
   const [kuotaHabis, setKuotaHabis] = useState("");
   const [banding, setBanding] = useState(false);
@@ -719,6 +731,16 @@ function IsiObrolan() {
   async function kirim() {
     if (!teks.trim() || sibuk) return;
 
+    // /btw dikenali SEBELUM apa pun yang menyentuh riwayat: tidak ada
+    // percakapan yang dibuat, tidak ada pesan yang disimpan, tidak ada
+    // kurasi ingatan yang terpicu.
+    const sampingan = bacaBtw(teks);
+    if (sampingan) {
+      setTeks("");
+      await tanyaSamping(sampingan);
+      return;
+    }
+
     // Isi lampiran disatukan ke dalam pesan SEBELUM dikirim, dan pesan gabungan
     // itulah yang disimpan ke riwayat. Kalau yang disimpan cuma pertanyaannya,
     // memuat ulang percakapan akan menghasilkan jawaban yang merujuk berkas
@@ -762,6 +784,49 @@ function IsiObrolan() {
     if (sibuk) return;
     const sebelumnya = pesan.slice(0, indeks);
     await jalankan(baru, [...sebelumnya, { peran: "user", isi: baru }]);
+  }
+
+  /**
+   * Jawab pertanyaan sampingan, lalu tampilkan di panel — bukan di riwayat.
+   *
+   * Sengaja tidak memakai `jalankan`: seluruh fungsi itu ada untuk menulis ke
+   * riwayat dan menyimpannya, dan itu justru yang tidak boleh terjadi di sini.
+   */
+  async function tanyaSamping(tanya: string) {
+    setSamping({ tanya, jawab: "", sibuk: true });
+    try {
+      const r = await fetch("/api/samping", {
+        method: "POST",
+        body: JSON.stringify({ percakapan: idPercakapan, tanya }),
+      });
+      if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
+
+      const pembaca = r.body.getReader();
+      const dekoder = new TextDecoder();
+      let sisa = "";
+      for (;;) {
+        const { done, value } = await pembaca.read();
+        if (done) break;
+        sisa += dekoder.decode(value, { stream: true });
+        const baris = sisa.split("\n");
+        sisa = baris.pop() ?? "";
+        for (const b of baris) {
+          if (!b.startsWith("data: ")) continue;
+          const k = bacaKejadian(b.slice(6));
+          if (!k) continue;
+          if (k.jenis === "teks") {
+            setSamping((s) => (s ? { ...s, jawab: s.jawab + k.teks } : s));
+          }
+          if (k.jenis === "gagal") {
+            setSamping((s) => (s ? { ...s, jawab: `**Gagal:** ${k.pesan}` } : s));
+          }
+        }
+      }
+    } catch (e) {
+      setSamping((s) => (s ? { ...s, jawab: `**Gagal:** ${(e as Error).message}` } : s));
+    } finally {
+      setSamping((s) => (s ? { ...s, sibuk: false } : s));
+    }
   }
 
   /**
@@ -1134,6 +1199,47 @@ function IsiObrolan() {
 
           {galatRiwayat && <SpandukPeringatan pesan={galatRiwayat} />}
           {galatSimpan && <SpandukPeringatan pesan={galatSimpan} />}
+
+          {/* Jawaban sampingan.
+
+              Ditaruh DI ATAS percakapan dan bergaris putus-putus: keduanya
+              menandai bahwa ia bukan bagian dari riwayat. Gelembung yang
+              terlihat sama seperti jawaban biasa akan membuat orang mengira
+              ia tersimpan, lalu kehilangannya saat memuat ulang. */}
+          {samping && (
+            <div
+              className="naik mb-6 rounded-[var(--radius)] p-4"
+              style={{
+                border: "1px dashed var(--garis)",
+                background: "var(--sorot-lemah)",
+              }}
+            >
+              <div className="mb-2 flex items-baseline justify-between gap-3">
+                <span
+                  className="text-[12px]"
+                  style={{ color: "var(--teks-redup)" }}
+                >
+                  Sampingan — tidak disimpan ke obrolan
+                </span>
+                <button
+                  onClick={() => setSamping(null)}
+                  aria-label="Tutup jawaban sampingan"
+                  className="aksi-pesan shrink-0 rounded-[var(--radius-kecil)] p-1"
+                  style={{ color: "var(--redup)" }}
+                >
+                  <IkonTutup ukuran={12} />
+                </button>
+              </div>
+              <p className="mb-2 text-[13px]" style={{ color: "var(--teks-kedua)" }}>
+                {samping.tanya}
+              </p>
+              {samping.jawab ? (
+                <Markdown isi={samping.jawab} />
+              ) : (
+                <span className="kursor" style={{ color: "var(--teks-redup)" }} />
+              )}
+            </div>
+          )}
 
           {/* Tiga keadaan, bukan dua: memuat, kosong sungguhan, dan berisi. */}
           {kosong && memuatRiwayat ? (
