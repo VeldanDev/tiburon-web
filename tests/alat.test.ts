@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe("skema alat", () => {
-  it("semuanya punya nama, deskripsi, dan parameter", () => {
+  it("semuanya punya nama, deskripsi, dan parameter", async () => {
     expect(SKEMA_ALAT.length).toBeGreaterThan(0);
     for (const s of SKEMA_ALAT) {
       expect(s.function.name).toMatch(/^[a-z_]+$/);
@@ -45,7 +45,7 @@ describe("skema alat", () => {
     }
   });
 
-  it("tidak ada alat yang bisa menulis atau menjalankan perintah", () => {
+  it("tidak ada alat yang bisa menulis atau menjalankan perintah", async () => {
     // Lapisan izin sekarang SUDAH ada (lib/izin.ts), tapi belum ada satu pun
     // alat berkemampuan-tulis yang dibangun lewatnya. Pagar ini tetap:
     // menambah alat tulis harus jadi keputusan sadar yang memecahkan uji
@@ -59,60 +59,60 @@ describe("skema alat", () => {
 });
 
 describe("jalankanAlat", () => {
-  it("mengembalikan potongan korpus beserta nama berkasnya", () => {
-    const hasil = jalankanAlat("cari_korpus", '{"kueri":"radar"}');
+  it("mengembalikan potongan korpus beserta nama berkasnya", async () => {
+    const hasil = await jalankanAlat("cari_korpus", '{"kueri":"radar"}');
     expect(hasil).toContain("catatan.md");
     expect(hasil).toContain("isi potongan");
   });
 
   // Nama alat yang dikarang dijawab sebagai HASIL, bukan galat, supaya model
   // bisa membaca daftar yang benar dan mencoba lagi.
-  it("menjawab nama alat yang tidak ada, bukan melempar", () => {
-    const hasil = jalankanAlat("alat_karangan", "{}");
+  it("menjawab nama alat yang tidak ada, bukan melempar", async () => {
+    const hasil = await jalankanAlat("alat_karangan", "{}");
     expect(hasil).toContain("tidak ada");
     expect(hasil).toContain("cari_korpus");
   });
 
   // Model kerap mengirim JSON yang sedikit cacat. Melempar di sini akan
   // mematikan seluruh percakapan karena satu koma.
-  it("bertahan terhadap argumen JSON yang cacat", () => {
+  it("bertahan terhadap argumen JSON yang cacat", async () => {
     expect(() => jalankanAlat("cari_korpus", "{rusak")).not.toThrow();
-    expect(jalankanAlat("cari_korpus", "{rusak")).toContain("kosong");
+    expect(await jalankanAlat("cari_korpus", "{rusak")).toContain("kosong");
   });
 
-  it("menjawab skema korpus yang rusak sebagai hasil, bukan galat", () => {
+  it("menjawab skema korpus yang rusak sebagai hasil, bukan galat", async () => {
     vi.mocked(korpus.periksaSkema).mockReturnValue({ cocok: false, alasan: "tabel hilang" });
-    expect(jalankanAlat("cari_korpus", '{"kueri":"apa"}')).toContain("tabel hilang");
+    expect(await jalankanAlat("cari_korpus", '{"kueri":"apa"}')).toContain("tabel hilang");
   });
 
-  it("menjawab pencarian korpus yang melempar sebagai hasil", () => {
+  it("menjawab pencarian korpus yang melempar sebagai hasil", async () => {
     vi.mocked(korpus.cari).mockImplementationOnce(() => {
       throw new Error("basis data terkunci");
     });
-    expect(jalankanAlat("cari_korpus", '{"kueri":"apa"}')).toContain("basis data terkunci");
+    expect(await jalankanAlat("cari_korpus", '{"kueri":"apa"}')).toContain("basis data terkunci");
   });
 
-  it("menolak tanggal radar yang tidak valid, bukan mencari berkas 'Invalid Date'", () => {
-    expect(jalankanAlat("baca_radar", '{"tanggal":"kemarin"}')).toContain("tidak valid");
+  it("menolak tanggal radar yang tidak valid, bukan mencari berkas 'Invalid Date'", async () => {
+    expect(await jalankanAlat("baca_radar", '{"tanggal":"kemarin"}')).toContain("tidak valid");
   });
 
-  it("mengatakan terus terang saat laporan radar belum ada", () => {
-    expect(jalankanAlat("baca_radar", '{"tanggal":"2020-01-01"}')).toContain("Belum ada");
+  it("mengatakan terus terang saat laporan radar belum ada", async () => {
+    expect(await jalankanAlat("baca_radar", '{"tanggal":"2020-01-01"}')).toContain("Belum ada");
   });
 });
 
 describe("ringkasPanggilan", () => {
-  it("menyebut kuerinya supaya jejaknya bisa dibaca sekilas", () => {
+  it("menyebut kuerinya supaya jejaknya bisa dibaca sekilas", async () => {
     expect(ringkasPanggilan("cari_korpus", '{"kueri":"arsitektur radar"}')).toContain(
       "arsitektur radar",
     );
   });
 
-  it("tidak meledak untuk alat yang tidak dikenal", () => {
+  it("tidak meledak untuk alat yang tidak dikenal", async () => {
     expect(ringkasPanggilan("hantu", "{}")).toContain("tidak dikenal");
   });
 
-  it("adaAlat mengenali yang ada dan yang tidak", () => {
+  it("adaAlat mengenali yang ada dan yang tidak", async () => {
     expect(adaAlat("cari_korpus")).toBe(true);
     expect(adaAlat("hantu")).toBe(false);
   });
@@ -130,9 +130,9 @@ describe("berkas senama di korpus", () => {
     { path: "MEMORY.md", potongan: 17 },
   ];
 
-  it("daftar_berkas_korpus menyebut tiap berkas dengan nama berbeda", () => {
+  it("daftar_berkas_korpus menyebut tiap berkas dengan nama berbeda", async () => {
     vi.mocked(korpus.daftarBerkas).mockReturnValueOnce(BENTROK);
-    const keluar = jalankanAlat("daftar_berkas_korpus", "{}");
+    const keluar = await jalankanAlat("daftar_berkas_korpus", "{}");
     const baris = keluar.trim().split("\n");
 
     expect(baris).toHaveLength(4);
@@ -143,12 +143,12 @@ describe("berkas senama di korpus", () => {
     expect(keluar).toContain("rem/2026-09-03.md");
   });
 
-  it("cari_korpus mengutip berkas yang bisa ditelusuri", () => {
+  it("cari_korpus mengutip berkas yang bisa ditelusuri", async () => {
     vi.mocked(korpus.daftarBerkas).mockReturnValueOnce(BENTROK);
     vi.mocked(korpus.cari).mockReturnValueOnce([
       { path: "memory/dreaming/rem/2026-09-03.md", teks: "isi mimpi", skor: 1 },
     ]);
-    const keluar = jalankanAlat("cari_korpus", '{"kueri":"mimpi"}');
+    const keluar = await jalankanAlat("cari_korpus", '{"kueri":"mimpi"}');
     expect(keluar).toContain("[rem/2026-09-03.md]");
   });
 });

@@ -155,8 +155,13 @@ function lantai(t: Tindakan): string | null {
     if (t.jenis !== "baca-berkas" && mutlak(t.sasaran) === mutlak(k.korpusDb)) {
       return "Basis data korpus hanya boleh dibaca, tidak pernah diubah.";
     }
-    if (!akarBoleh().some((akar) => diDalam(t.sasaran, akar))) {
-      return `Di luar folder yang boleh disentuh: ${mutlak(t.sasaran)}`;
+    // MENULIS dan MENGHAPUS di luar folder yang boleh: lantai, tidak bisa
+    // ditawar. MEMBACA di luar: bukan lantai — itu justru kasus yang dialog
+    // izin ada untuk menyelesaikannya. Menaruhnya di lantai berarti Veldan
+    // tidak bisa menunjuk satu berkas di luar proyek walau ia yang meminta,
+    // dan dialog izinnya jadi tidak pernah terpicu sama sekali.
+    if (t.jenis !== "baca-berkas" && !akarBoleh().some((akar) => diDalam(t.sasaran, akar))) {
+      return `Di luar folder yang boleh diubah: ${mutlak(t.sasaran)}`;
     }
   }
 
@@ -189,6 +194,16 @@ export function putuskan(
 ): Keputusan {
   const alasanLantai = lantai(t);
   if (alasanLantai) return { hasil: "tolak", alasan: alasanLantai, lantai: true };
+
+  // Membaca DI LUAR folder yang boleh selalu bertanya, walau kebijakan
+  // "baca-berkas" berbunyi izinkan. Kebijakan itu tentang berkas proyek;
+  // berkas di luar adalah keputusan yang berbeda dan harus diambil sadar.
+  if (t.jenis === "baca-berkas" && !akarBoleh().some((akar) => diDalam(t.sasaran, akar))) {
+    return {
+      hasil: "tanya",
+      alasan: `Berkas ini di luar folder proyek: ${mutlak(t.sasaran)}`,
+    };
+  }
 
   const aturan = { ...KEBIJAKAN_BAWAAN, ...kebijakan }[t.jenis];
 

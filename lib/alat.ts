@@ -30,6 +30,7 @@
  */
 import { cari, periksaSkema, daftarBerkas } from "@/lib/korpus";
 import { petaLabel } from "@/lib/label-berkas";
+import type { Tindakan as TindakanIzin } from "@/lib/izin";
 import { bacaBerkas } from "@/lib/baca-berkas";
 import { bacaRadar } from "@/lib/radar-parser";
 import { ringkasSumber } from "@/lib/sumber-terpakai";
@@ -60,6 +61,19 @@ export type SkemaAlat = {
  */
 type Lapor = (berkas: string[], kueri: string) => void;
 
+/**
+ * Konteks satu pemanggilan alat.
+ *
+ * Satu objek, bukan deretan argumen: menambah kemampuan baru nanti
+ * (pembatalan, anggaran, pencatatan) tidak akan memaksa tiap alat
+ * mengubah tanda tangannya.
+ */
+export type KonteksAlat = {
+  lapor?: Lapor;
+  /** Ajukan izin dan tunggu jawabannya. Tidak ada = anggap tidak diizinkan. */
+  mintaIzin?: (t: TindakanIzin) => Promise<boolean>;
+};
+
 type Alat = {
   skema: SkemaAlat;
   /**
@@ -70,7 +84,14 @@ type Alat = {
    * yang jawabannya tidak bisa diperiksa: tidak ada chip sumber, tidak ada
    * yang bisa dibuka, dan tidak ada yang tercatat di Riwayat sumber.
    */
-  jalankan: (arg: Record<string, unknown>, lapor?: Lapor) => string;
+  /**
+   * Boleh mengembalikan janji.
+   *
+   * Alat yang butuh bertanya ke Veldan harus menunggu jawabannya, dan
+   * menunggu berarti async. Alat lama yang mengembalikan string langsung
+   * tetap sah — `string` adalah `string | Promise<string>` yang valid.
+   */
+  jalankan: (arg: Record<string, unknown>, ctx?: KonteksAlat) => string | Promise<string>;
   /** Ringkasan satu baris untuk ditampilkan di antarmuka. */
   ringkas: (arg: Record<string, unknown>) => string;
 };
@@ -100,7 +121,7 @@ const DAFTAR: Alat[] = [
       },
     },
     ringkas: (a) => `Mencari korpus: “${teksArg(a, "kueri")}”`,
-    jalankan: (a, lapor) => {
+    jalankan: (a, ctx) => {
       const kueri = teksArg(a, "kueri").trim();
       if (!kueri) return "Kueri kosong.";
 
@@ -115,7 +136,7 @@ const DAFTAR: Alat[] = [
         // sendiri tidak punya cara membedakan ketiganya.
         const label = petaLabel(daftarBerkas().map((x) => x.path));
         if (hasil.length === 0) return `Tidak ada yang cocok dengan "${kueri}" di korpus.`;
-        lapor?.([...new Set(hasil.map((h) => label.get(h.path) ?? h.path))], kueri);
+        ctx?.lapor?.([...new Set(hasil.map((h) => label.get(h.path) ?? h.path))], kueri);
         return hasil
           .map((h) => {
             const nama = label.get(h.path) ?? h.path;
@@ -226,8 +247,8 @@ const DAFTAR: Alat[] = [
       },
     },
     ringkas: (a) => `Membaca berkas: ${teksArg(a, "jalur")}`,
-    jalankan: (a) => {
-      const hasil = bacaBerkas(teksArg(a, "jalur"));
+    jalankan: async (a, ctx) => {
+      const hasil = await bacaBerkas(teksArg(a, "jalur"), ctx?.mintaIzin);
       // Kegagalan dikembalikan sebagai TEKS, bukan lemparan: alat yang
       // melempar menghentikan seluruh giliran agen, sedangkan alat yang
       // menjawab "tidak bisa karena X" membiarkan model membaca alasannya
@@ -296,11 +317,11 @@ function uraiArgumen(json: string): Record<string, unknown> {
   }
 }
 
-export function jalankanAlat(
+export async function jalankanAlat(
   nama: string,
   argumenJson: string,
-  lapor?: Lapor,
-): string {
+  ctx?: KonteksAlat,
+): Promise<string> {
   const alat = DAFTAR.find((a) => a.skema.function.name === nama);
   if (!alat) {
     // Model kadang mengarang nama alat. Dijawab sebagai HASIL, bukan galat,
@@ -308,7 +329,7 @@ export function jalankanAlat(
     return `Alat "${nama}" tidak ada. Yang tersedia: ${SKEMA_ALAT.map((s) => s.function.name).join(", ")}.`;
   }
   try {
-    return alat.jalankan(uraiArgumen(argumenJson), lapor);
+    return await alat.jalankan(uraiArgumen(argumenJson), ctx);
   } catch (e) {
     return `Alat "${nama}" gagal: ${(e as Error).message}`;
   }

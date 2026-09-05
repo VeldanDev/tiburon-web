@@ -64,6 +64,8 @@ type KejadianAliran =
   | { jenis: "model"; nama: string }
   | { jenis: "teks"; teks: string }
   | { jenis: "sumber"; berkas: string[]; kueri?: string }
+  | { jenis: "izin-diminta"; id: string; tindakan: { jenis: string; sasaran: string } }
+  | { jenis: "izin-dijawab"; id: string; izinkan: boolean }
   | { jenis: "peringatan"; pesan: string }
   | { jenis: "gagal"; pesan: string }
   // Dua kejadian ini HANYA datang dari /api/agen. Disatukan ke dalam tipe yang
@@ -191,6 +193,16 @@ function IsiObrolan() {
    * persona, yang memang punya rantai modelnya sendiri.
    */
   const [modelPilihan, setModelPilihan] = useState<string | null>(null);
+  /**
+   * Permintaan izin yang sedang menunggu jawaban.
+   *
+   * Satu saja, bukan antrean: agen memanggil alat berurutan, jadi tidak
+   * pernah ada dua permintaan hidup sekaligus. Antrean yang tidak mungkin
+   * terisi cuma menambah keadaan yang harus dijaga benar.
+   */
+  const [izin, setIzin] = useState<
+    { id: string; jenis: string; sasaran: string } | null
+  >(null);
   const { jalurAwal, siap: jalurSiap } = useJalurAwal();
   const [pesan, setPesan] = useState<Balasan[]>([]);
   const [teks, setTeks] = useState("");
@@ -697,6 +709,15 @@ function IsiObrolan() {
               }
               akhir.jejak = daftar;
             }
+            if (k.jenis === "izin-diminta") {
+              setIzin({ id: k.id, jenis: k.tindakan.jenis, sasaran: k.tindakan.sasaran });
+            }
+            // Ditutup oleh SERVER, bukan oleh tombolnya. Batas waktu dan
+            // pembatalan juga berujung di sini, dan keduanya tidak lewat
+            // tombol mana pun — dialog yang cuma ditutup tombol akan
+            // menggantung selamanya di kedua keadaan itu.
+            if (k.jenis === "izin-dijawab") setIzin(null);
+
             if (k.jenis === "sumber") {
               akhir.sumber = k.berkas;
               // Jalur Agen mengirim kueri hasil rumusannya sendiri. Kartu
@@ -805,6 +826,27 @@ function IsiObrolan() {
     if (sibuk) return;
     const sebelumnya = pesan.slice(0, indeks);
     await jalankan(baru, [...sebelumnya, { peran: "user", isi: baru }]);
+  }
+
+  /**
+   * Jawab permintaan izin.
+   *
+   * Dialognya TIDAK ditutup di sini — server yang menutupnya lewat
+   * `izin-dijawab`. Menutupnya di sini berarti dialog hilang walau
+   * jawabannya tidak sampai, dan giliran agen menggantung tanpa satu pun
+   * tanda di layar.
+   */
+  async function jawabIzin(izinkan: boolean) {
+    if (!izin) return;
+    try {
+      await fetch("/api/izin", {
+        method: "POST",
+        body: JSON.stringify({ id: izin.id, izinkan }),
+      });
+    } catch {
+      // Gagal terkirim: dialognya sengaja dibiarkan terbuka. Batas waktu di
+      // server akan menutupnya sebagai TIDAK, dan itu jawaban yang aman.
+    }
   }
 
   /**
@@ -1254,6 +1296,55 @@ function IsiObrolan() {
 
           {galatRiwayat && <SpandukPeringatan pesan={galatRiwayat} />}
           {galatSimpan && <SpandukPeringatan pesan={galatSimpan} />}
+
+          {/* Permintaan izin.
+
+              Warnanya --hidup, bukan --danger: ini bukan galat, melainkan
+              pertanyaan. Merah akan membuat setiap permintaan wajar terbaca
+              seolah ada yang rusak, dan orang berhenti membacanya.
+
+              Tombol TOLAK ditaruh lebih dulu dan diberi fokus otomatis:
+              yang paling aman harus jadi yang paling mudah ditekan, termasuk
+              oleh Enter yang tidak sengaja. */}
+          {izin && (
+            <div
+              role="alertdialog"
+              aria-label="Permintaan izin"
+              className="naik mb-6 rounded-[var(--radius)] border p-4"
+              style={{ borderColor: "var(--hidup)", background: "var(--lapis-1)" }}
+            >
+              <div className="mb-1 flex items-center gap-2 text-[12px]" style={{ color: "var(--hidup)" }}>
+                <IkonPeringatan ukuran={13} />
+                Tiburon minta izin
+              </div>
+              <p className="mb-1 text-[13px]" style={{ color: "var(--teks-utama)" }}>
+                {izin.jenis === "baca-berkas" ? "Membaca berkas" : izin.jenis}
+              </p>
+              <p className="angka mb-3 break-all text-[12px]" style={{ color: "var(--teks-kedua)" }}>
+                {izin.sasaran}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  autoFocus
+                  onClick={() => void jawabIzin(false)}
+                  className="rounded-[var(--radius-kecil)] px-3 py-1.5 text-[12px] transition"
+                  style={{ background: "var(--lapis-2)", color: "var(--teks-utama)" }}
+                >
+                  Tolak
+                </button>
+                <button
+                  onClick={() => void jawabIzin(true)}
+                  className="rounded-[var(--radius-kecil)] px-3 py-1.5 text-[12px] transition"
+                  style={{ background: "var(--hidup)", color: "var(--abyss)" }}
+                >
+                  Izinkan sekali
+                </button>
+                <span className="text-[11px]" style={{ color: "var(--teks-redup)" }}>
+                  tidak dijawab dalam 2 menit = ditolak
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Jawaban sampingan.
 

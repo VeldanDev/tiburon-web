@@ -1,6 +1,7 @@
 // node:sqlite dipakai alat-alatnya, dan itu tidak jalan di Edge runtime.
 export const runtime = "nodejs";
 
+import { batalkanIzin, mintaIzin } from "@/lib/izin-tunggu";
 import { jalankanAgen } from "@/lib/agen";
 import { ambilPengaturan } from "@/lib/pengaturan";
 import { instruksiUntukPercakapan } from "@/lib/proyek";
@@ -60,6 +61,35 @@ export async function POST(req: Request) {
           // menutup tab meninggalkan gelung yang terus memanggil model dan
           // membakar kuota untuk jawaban yang tidak akan pernah dibaca.
           signal: req.signal,
+
+          /**
+           * Ajukan izin ke layar, lalu tunggu jawabannya.
+           *
+           * Disediakan DI SINI, bukan di dalam gelung agen, karena
+           * mengajukan izin berarti mengirim sesuatu ke aliran — dan yang
+           * memegang alirannya adalah rute ini.
+           */
+          mintaIzin: async (tindakan) => {
+            const { id, janji } = mintaIzin(tindakan);
+
+            // Dibatalkan bersama gilirannya. Tanpa ini, menekan Esc
+            // meninggalkan permintaan yang menunggu jawaban untuk pekerjaan
+            // yang sudah dihentikan — sampai batas waktunya habis.
+            const batal = () => batalkanIzin(id);
+            req.signal.addEventListener("abort", batal, { once: true });
+
+            try {
+              kontrol.enqueue(baris({ jenis: "izin-diminta", id, tindakan }));
+              const izinkan = await janji;
+              // Jawabannya ikut dikirim supaya layar bisa menutup
+              // dialognya — termasuk saat yang menjawab adalah batas waktu,
+              // bukan Veldan.
+              kontrol.enqueue(baris({ jenis: "izin-dijawab", id, izinkan }));
+              return izinkan;
+            } finally {
+              req.signal.removeEventListener("abort", batal);
+            }
+          },
         })) {
           kontrol.enqueue(baris(k));
         }

@@ -80,7 +80,10 @@ export type HasilBaca = { ok: true; teks: string } | { ok: false; pesan: string 
  * "tidak bisa karena X" membiarkan model membaca alasannya dan memberi tahu
  * penggunanya. Perbedaan itu yang paling menentukan di sini.
  */
-export function bacaBerkas(jalur: string): HasilBaca {
+export async function bacaBerkas(
+  jalur: string,
+  mintaIzin?: (t: { jenis: 'baca-berkas'; sasaran: string }) => Promise<boolean>,
+): Promise<HasilBaca> {
   const bersih = jalur.trim();
   if (!bersih) return { ok: false, pesan: "Jalur berkas kosong." };
 
@@ -91,14 +94,21 @@ export function bacaBerkas(jalur: string): HasilBaca {
     return { ok: false, pesan: `Tidak diizinkan: ${izin.alasan}` };
   }
   if (izin.hasil === "tanya") {
-    // Alat ini belum punya jalur bertanya ke pengguna. Sampai itu ada,
-    // "tanya" berarti tidak — bukan diam-diam jadi ya.
-    return {
-      ok: false,
-      pesan:
-        `Butuh izin untuk membaca berkas di luar folder yang diizinkan: ${bersih}. ` +
-        `Buka berkasnya sendiri, atau salin ke folder proyek.`,
-    };
+    // Tanpa jalur bertanya, "tanya" berarti TIDAK — bukan diam-diam jadi ya.
+    // Itu keadaan saat alat ini dipanggil dari tempat yang tidak punya layar
+    // untuk menampilkan permintaannya.
+    if (!mintaIzin) {
+      return {
+        ok: false,
+        pesan: `Butuh izin untuk membaca ${bersih}, dan tidak ada tempat untuk bertanya.`,
+      };
+    }
+    const boleh = await mintaIzin({ jenis: "baca-berkas", sasaran: bersih });
+    if (!boleh) {
+      // Ditolak, kedaluwarsa, dan dibatalkan semuanya berujung di sini —
+      // dan ketiganya memang sama artinya bagi alat ini.
+      return { ok: false, pesan: `Veldan tidak mengizinkan membaca ${bersih}.` };
+    }
   }
 
   const mutlak = path.resolve(bersih);
