@@ -32,7 +32,7 @@ import { PINTASAN } from "@/lib/pintasan";
 import { RANTAI_BAWAAN } from "@/lib/penyedia";
 import { jalurBagian, sahihBagian, type IdBagian } from "@/lib/bagian-pengaturan";
 
-type Ingatan = { id: string; isi: string; dibuat: number };
+type Ingatan = { id: string; isi: string; dibuat: number; otomatis?: boolean };
 
 const BAGIAN: {
   id: IdBagian;
@@ -82,7 +82,7 @@ const TENTANG: { k: string; v: string }[] = [
   },
   {
     k: "Ingatan otomatis",
-    v: "Tidak ada. Setiap baris ingatan ditulis olehmu di bagian Ingatan, dan bisa dihapus dari sana.",
+    v: "Ada. Tiap 10 pesan, Tiburon menyimpulkan fakta tetap tentangmu dan menyimpannya sendiri — ditandai, dan tidak pernah menghapus yang kamu tulis sendiri.",
   },
 ];
 
@@ -350,7 +350,7 @@ function IsiPengaturan() {
             <section>
               <Kepala
                 judul="Ingatan"
-                alasan="Fakta tentangmu yang tidak perlu diulang tiap kali. Ditulis sendiri, tidak pernah disimpulkan otomatis — ingatan otomatis yang salah akan mewarnai setiap jawaban tanpa kamu tahu kenapa."
+                alasan="Fakta tentangmu yang tidak perlu diulang tiap kali. Sebagian kamu tulis sendiri; sebagian disimpulkan Tiburon di latar belakang tiap 10 pesan, dan yang itu ditandai. Semuanya masuk ke setiap jawaban, dan semuanya bisa kamu hapus."
               />
 
               <div className="mb-4 flex gap-2">
@@ -381,7 +381,8 @@ function IsiPengaturan() {
 
               {ingatan.length === 0 ? (
                 <p className="text-[12px]" style={{ color: "var(--teks-redup)" }}>
-                  Belum ada. Tiburon menjawab tanpa mengingat apa pun tentangmu.
+                  Belum ada. Tulis satu, atau biarkan — Tiburon akan mulai
+                  menyimpulkannya sendiri setelah percakapan cukup panjang.
                 </p>
               ) : (
                 <div className="space-y-1">
@@ -392,6 +393,18 @@ function IsiPengaturan() {
                     >
                       <span className="min-w-0 flex-1" style={{ color: "var(--teks-utama)" }}>
                         {i.isi}
+                        {/* Ditandai, bukan dicampur. Ingatan yang tidak bisa
+                            dibedakan asalnya adalah ingatan yang tidak bisa
+                            dipercaya sepenuhnya. */}
+                        {i.otomatis && (
+                          <span
+                            className="ml-2 whitespace-nowrap text-[10.5px]"
+                            style={{ color: "var(--teks-redup)" }}
+                            title="Disimpulkan Tiburon dari percakapanmu, bukan kamu yang menulis"
+                          >
+                            disimpulkan
+                          </span>
+                        )}
                       </span>
                       <button
                         onClick={() => void hapus(i.id)}
