@@ -1,5 +1,12 @@
 "use client";
 
+// Jendela dan taksiran token diambil dari lib/muat.ts, bukan disalin ke sini:
+// meter yang menghitung dengan batas lama sambil pemangkas memakai batas baru
+// adalah bug yang tidak terlihat sampai seseorang bertanya kenapa meternya
+// bilang 80% padahal ada yang dipangkas.
+export { JENDELA, taksirToken } from "@/lib/muat";
+import { JENDELA, taksirToken } from "@/lib/muat";
+
 /**
  * Meter konteks — berapa banyak jendela model yang sudah terpakai.
  *
@@ -17,21 +24,6 @@
  * yang wajar untuk campuran Bahasa Indonesia dan kode.
  */
 
-const PER_TOKEN = 3.6;
-
-/**
- * Jendela konteks rantai bawaan.
- *
- * Diambil dari yang paling SEMPIT di rantai, bukan yang terluas: kalau model
- * pertama kena 429 dan yang kedua mengambil alih, percakapan yang muat di
- * yang pertama harus tetap muat di penggantinya. Meter yang menampilkan
- * batas terluas akan tampak lega tepat sebelum failover memotongnya.
- */
-export const JENDELA = 128_000;
-
-export function taksirToken(teks: string): number {
-  return Math.ceil(teks.length / PER_TOKEN);
-}
 
 export function MeterKonteks({ pesan }: { pesan: { isi: string }[] }) {
   const token = pesan.reduce((n, p) => n + taksirToken(p.isi), 0);

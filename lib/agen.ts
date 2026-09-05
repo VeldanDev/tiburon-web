@@ -18,6 +18,7 @@
 import { SKEMA_ALAT, jalankanAlat, ringkasPanggilan } from "@/lib/alat";
 import type { Tindakan as TindakanIzin } from "@/lib/izin";
 import { kenaliSebab, rangkumKegagalan, type Kegagalan } from "@/lib/sebab-gagal";
+import { muatkan } from "@/lib/muat";
 import { RANTAI_BAWAAN, bagianBersama, type Pesan } from "@/lib/penyedia";
 
 export type KejadianAgen =
@@ -207,7 +208,12 @@ export async function* jalankanAgen(
       for (let putaran = 0; putaran < BATAS_PUTARAN; putaran++) {
         if (opsi.signal?.aborted) return;
 
-        const hasil = await panggil(model, pesan, opsi.signal);
+        // Dipangkas tiap putaran, bukan sekali di awal: jalur inilah yang
+        // paling cepat membengkak — tiap panggilan alat menambah hasilnya ke
+        // percakapan, lalu SELURUHNYA dikirim ulang di putaran berikutnya.
+        // Sepuluh putaran membaca berkas bisa melewati jendela walau
+        // pertanyaan awalnya satu kalimat.
+        const hasil = await panggil(model, muatkan(pesan).pesan as PesanAlat[], opsi.signal);
 
         if (hasil.panggilan.length === 0) {
           if (!hasil.isi.trim()) {
