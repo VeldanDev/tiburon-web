@@ -46,3 +46,5 @@ node_modules
 # artefak alur kerja SDD
 .superpowers/
 data/
+data/katalog.sqlite
+data/uji-*
