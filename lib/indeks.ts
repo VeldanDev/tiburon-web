@@ -35,6 +35,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { EKSTENSI_KANTOR, ekstrak } from "@/lib/ekstrak";
+import { buatPembaca } from "@/lib/ocr";
 
 /**
  * Panjang satu potongan, dalam karakter.
@@ -188,6 +189,7 @@ export async function bangunIndeks(
   folder: string,
   tujuan: string,
   lapor?: (pesan: string) => void,
+  opsi?: { ocr?: boolean },
 ): Promise<Ringkasan> {
   const akar = path.resolve(folder);
   if (!fs.existsSync(akar) || !fs.statSync(akar).isDirectory()) {
@@ -196,6 +198,11 @@ export async function bangunIndeks(
 
   const dilewati: { jalur: string; sebab: string }[] = [];
   const catat = (jalur: string, sebab: string) => dilewati.push({ jalur, sebab });
+
+  // Pembacanya dibuat sekarang tapi pekerjanya baru menyala saat berkas
+  // pindai PERTAMA ditemui — arsip tanpa berkas pindai tidak mengunduh
+  // apa pun.
+  const ocr = opsi?.ocr ? buatPembaca(lapor) : undefined;
 
   const sementara = `${tujuan}.sedang-dibangun`;
   fs.mkdirSync(path.dirname(tujuan), { recursive: true });
@@ -244,7 +251,7 @@ export async function bangunIndeks(
         // PDF dan Word lewat pengurai sendiri. Kegagalannya dicatat dengan
         // sebabnya — "PDF ini hasil pindai, butuh OCR" jauh lebih menolong
         // daripada berkas yang hilang tanpa penjelasan.
-        const hasil = await ekstrak(berkas);
+        const hasil = await ekstrak(berkas, { ocr });
         if (!hasil.ok) {
           catat(berkas, hasil.sebab);
           continue;
@@ -293,6 +300,7 @@ export async function bangunIndeks(
     );
     db.exec("COMMIT");
   } catch (e) {
+    await ocr?.tutup();
     try {
       db.exec("ROLLBACK");
     } catch {
@@ -303,6 +311,7 @@ export async function bangunIndeks(
     throw e;
   }
 
+  await ocr?.tutup();
   db.close();
   // Pemindahan terakhir: sampai baris ini, indeks lama masih utuh dan masih
   // dipakai. Kegagalan di mana pun sebelum ini tidak merusak apa pun.
