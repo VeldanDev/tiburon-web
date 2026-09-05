@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { konfigurasi, lupakanKonfigurasi } from "@/lib/konfigurasi";
+import fs from "node:fs";
+import path from "node:path";
 
 const KUNCI = [
   "TIBURON_RIWAYAT_DB",
@@ -63,5 +65,19 @@ describe("konfigurasi", () => {
   it("penimpa satu jalur tidak menyeret jalur lain", () => {
     process.env.TIBURON_RIWAYAT_DB = "/tmp/uji.sqlite";
     expect(konfigurasi().korpusDb).toContain("openclaw");
+  });
+});
+
+describe("bawaan yang bisa dipasang di mesin lain", () => {
+  it("tidak ada jalur mutlak milik satu mesin yang lolos ke pemasangan lain", async () => {
+    // Bawaan yang menunjuk ke D:\vscode\MyProjects\Otak\radar akan menunjuk ke
+    // ketiadaan di mesin klien. Uji ini memeriksa PERILAKUNYA — jalur yang
+    // dipakai harus benar-benar ada, atau berada di dalam proyek ini.
+    const k = konfigurasi();
+    for (const [nama, jalur] of Object.entries(k)) {
+      const didalam = !path.relative(process.cwd(), jalur).startsWith("..");
+      const ada = fs.existsSync(jalur);
+      expect(didalam || ada, `${nama} menunjuk ke luar proyek dan tidak ada: ${jalur}`).toBe(true);
+    }
   });
 });
