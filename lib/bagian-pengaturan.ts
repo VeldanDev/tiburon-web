@@ -28,3 +28,24 @@ export function sahihBagian(nilai: string | null): IdBagian {
 export function jalurBagian(id: IdBagian): string {
   return `/app/pengaturan?bagian=${id}`;
 }
+
+/**
+ * Label tiap bagian, DI SINI, bukan di halamannya.
+ *
+ * Sebelumnya daftarnya ditulis ulang di page.tsx dan dijaga oleh uji yang
+ * MEMBACA berkas sumbernya. Aturan Hermes tentang itu tegas dan benar: uji
+ * yang membaca teks sumber menguji BENTUK KODE, bukan perilaku — ia lolos
+ * saat implementasinya rusak halus, dan gagal saat kodenya dirapikan.
+ *
+ * Jalan keluarnya bukan uji yang lebih pintar, tapi memindahkan datanya:
+ * halaman membangun rel navigasinya DARI daftar ini, jadi sebuah bagian
+ * tidak lagi BISA lupa didaftarkan. Yang tersisa cuma ikonnya, dan itu
+ * dijaga tipe Record<IdBagian, ...> — lupa satu jadi galat kompilasi.
+ */
+export const BAGIAN: { id: IdBagian; label: string }[] = [
+  { id: "tampilan", label: "Tampilan" },
+  { id: "instruksi", label: "Instruksi khusus" },
+  { id: "ingatan", label: "Ingatan" },
+  { id: "pintasan", label: "Pintasan" },
+  { id: "tentang", label: "Tentang" },
+];

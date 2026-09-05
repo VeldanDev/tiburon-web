@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { BarisPercakapan, type Percakapan } from "@/components/BarisPercakapan";
 import { DaftarProyek, type Proyek } from "@/components/DaftarProyek";
 import { MenuAkun } from "@/components/MenuAkun";
+import { KELAS_WADAH_GULIR } from "@/lib/kerangka";
 import { MenuUrut, bacaUrutan, urutkan, type Urutan } from "@/components/MenuUrut";
 import {
   PenyediaJalurAwal,
@@ -424,7 +425,7 @@ function Kerangka({ children }: { children: React.ReactNode }) {
         tersapu. Dengan `relative`, main jadi penampungnya dan semuanya
         terklip di dalam.
       */}
-      <main className="relative min-w-0 flex-1 overflow-y-auto">{children}</main>
+      <main className={KELAS_WADAH_GULIR}>{children}</main>
     </div>
   );
 }
