@@ -13,17 +13,21 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "node:module";
-import { pathToFileURL } from "node:url";
 
 // Modulnya TypeScript, dan Node 24 bisa menjalankannya langsung dengan
 // pelucutan tipe. Kalau suatu hari tidak bisa, kegagalannya harus menyebut
 // alasannya, bukan sekadar "cannot find module".
+// Kait alias didaftarkan sebelum impor pertama: lib/ memakai "@/..." yang
+// hanya dimengerti Next dan Vitest, bukan Node murni.
+register("../bot/alias.mjs", import.meta.url);
+
 let bangunIndeks;
 try {
-  ({ bangunIndeks } = await import("../lib/indeks.ts"));
+  ({ bangunIndeks } = await import("@/lib/indeks.ts"));
 } catch (e) {
+  // Sebabnya diteruskan apa adanya. Versi sebelumnya selalu menyalahkan versi
+  // Node, dan itu menyesatkan pada kegagalan yang sama sekali bukan soal Node.
   console.error("Tidak bisa memuat lib/indeks.ts:", e.message);
-  console.error("Butuh Node 24 atau lebih baru. Cek dengan: node --version");
   process.exit(1);
 }
 
@@ -60,7 +64,7 @@ let ringkasan;
 try {
   // Tiap berkas dilaporkan saat diproses. Pada arsip besar, perintah yang diam
   // selama dua menit tidak bisa dibedakan dari perintah yang menggantung.
-  ringkasan = bangunIndeks(folder, tujuan, (p) => console.log(`  ${p}`));
+  ringkasan = await bangunIndeks(folder, tujuan, (p) => console.log(`  ${p}`));
 } catch (e) {
   console.error(`\nGagal: ${e.message}`);
   process.exit(1);

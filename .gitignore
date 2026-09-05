@@ -48,3 +48,5 @@ node_modules
 data/
 data/katalog.sqlite
 data/uji-*
+data/uji-kantor-docs/
+data/uji-kantor.sqlite

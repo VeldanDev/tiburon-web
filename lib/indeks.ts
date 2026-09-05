@@ -23,16 +23,18 @@
  *                butuh jaringan, dan tidak dipakai satu baris kode pun.
  *                Diisi saat ada yang benar-benar membacanya.
  *
- *   PDF & Word   Belum. Keduanya butuh pustaka pihak ketiga, dan menambah
- *                ketergantungan demi format yang belum tentu dipakai klien
- *                pertama adalah menebak. Yang tidak bisa dibaca DILAPORKAN
- *                namanya satu per satu, bukan dilewati diam-diam — supaya
- *                yang memasang tahu persis apa yang tidak masuk.
+ *   OCR          PDF hasil PINDAI tidak dibaca. Teksnya memang tidak ada di
+ *                dalam berkasnya, jadi yang dibutuhkan bukan pengurai lain
+ *                melainkan OCR — kemampuan berbeda dengan biayanya sendiri.
+ *                Kasus itu DILAPORKAN dengan sebabnya, bukan dilewati diam-
+ *                diam, supaya yang memasang tahu berkas mana yang perlu
+ *                dipindai ulang.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
+import { EKSTENSI_KANTOR, ekstrak } from "@/lib/ekstrak";
 
 /**
  * Panjang satu potongan, dalam karakter.
@@ -182,11 +184,11 @@ function skema(db: DatabaseSync): void {
  * dan pengindeksan yang gagal di tengah meninggalkan arsip yang rusak,
  * bukan arsip lama yang masih utuh.
  */
-export function bangunIndeks(
+export async function bangunIndeks(
   folder: string,
   tujuan: string,
   lapor?: (pesan: string) => void,
-): Ringkasan {
+): Promise<Ringkasan> {
   const akar = path.resolve(folder);
   if (!fs.existsSync(akar) || !fs.statSync(akar).isDirectory()) {
     throw new Error(`Folder tidak ada: ${akar}`);
@@ -220,7 +222,8 @@ export function bangunIndeks(
 
     for (const berkas of telusuri(akar, catat)) {
       const ext = path.extname(berkas).slice(1).toLowerCase();
-      if (!EKSTENSI.has(ext)) {
+      const kantor = EKSTENSI_KANTOR.has(ext);
+      if (!kantor && !EKSTENSI.has(ext)) {
         catat(berkas, ext ? `format .${ext} belum didukung` : "tanpa ekstensi");
         continue;
       }
@@ -237,16 +240,28 @@ export function bangunIndeks(
       }
 
       let isi: string;
-      try {
-        const mentah = fs.readFileSync(berkas);
-        if (mentah.subarray(0, 8000).includes(0)) {
-          catat(berkas, "isinya biner, bukan teks");
+      if (kantor) {
+        // PDF dan Word lewat pengurai sendiri. Kegagalannya dicatat dengan
+        // sebabnya — "PDF ini hasil pindai, butuh OCR" jauh lebih menolong
+        // daripada berkas yang hilang tanpa penjelasan.
+        const hasil = await ekstrak(berkas);
+        if (!hasil.ok) {
+          catat(berkas, hasil.sebab);
           continue;
         }
-        isi = mentah.toString("utf8");
-      } catch (e) {
-        catat(berkas, (e as Error).message);
-        continue;
+        isi = hasil.teks;
+      } else {
+        try {
+          const mentah = fs.readFileSync(berkas);
+          if (mentah.subarray(0, 8000).includes(0)) {
+            catat(berkas, "isinya biner, bukan teks");
+            continue;
+          }
+          isi = mentah.toString("utf8");
+        } catch (e) {
+          catat(berkas, (e as Error).message);
+          continue;
+        }
       }
 
       const bagian = potong(isi);
