@@ -22,7 +22,7 @@ import path from "node:path";
 import { siapkanSkema } from "@/lib/skema";
 import { randomUUID } from "node:crypto";
 
-export type Ingatan = { id: string; isi: string; dibuat: number };
+export type Ingatan = { id: string; isi: string; dibuat: number; otomatis?: boolean };
 
 export type Pengaturan = {
   instruksi: string;
@@ -88,16 +88,31 @@ export function daftarIngatan(dbPath = dbPengaturan()): Ingatan[] {
   const db = buka(dbPath);
   try {
     return db
-      .prepare("SELECT id, isi, dibuat FROM ingatan ORDER BY dibuat DESC")
+      .prepare("SELECT id, isi, dibuat, otomatis FROM ingatan ORDER BY dibuat DESC")
       .all()
-      .map((r) => r as Ingatan);
+      .map((r) => {
+        const row = r as unknown as {
+          id: string;
+          isi: string;
+          dibuat: number;
+          otomatis: number;
+        };
+        // `otomatis` dijadikan boolean di sini, bukan diteruskan sebagai 0/1:
+        // nilai yang berbeda bentuknya antara basis data dan antarmuka adalah
+        // tempat bug menumpuk.
+        return { id: row.id, isi: row.isi, dibuat: row.dibuat, otomatis: row.otomatis === 1 };
+      });
   } finally {
     db.close();
   }
 }
 
 /** Tambah satu butir ingatan. Melempar kalau batas jumlahnya sudah tercapai. */
-export function tambahIngatan(isi: string, dbPath = dbPengaturan()): Ingatan {
+export function tambahIngatan(
+  isi: string,
+  dbPath = dbPengaturan(),
+  otomatis = false,
+): Ingatan {
   const bersih = isi.trim().slice(0, BATAS_INGATAN);
   if (!bersih) throw new Error("Ingatan tidak boleh kosong");
 
@@ -112,13 +127,40 @@ export function tambahIngatan(isi: string, dbPath = dbPengaturan()): Ingatan {
         `Ingatan sudah penuh (${BATAS_JUMLAH_INGATAN} butir). Hapus salah satu lebih dulu.`,
       );
     }
-    const butir: Ingatan = { id: randomUUID(), isi: bersih, dibuat: Date.now() };
-    db.prepare("INSERT INTO ingatan (id, isi, dibuat) VALUES (?,?,?)").run(
+    const butir: Ingatan = { id: randomUUID(), isi: bersih, dibuat: Date.now(), otomatis };
+    db.prepare("INSERT INTO ingatan (id, isi, dibuat, otomatis) VALUES (?,?,?,?)").run(
       butir.id,
       butir.isi,
       butir.dibuat,
+      otomatis ? 1 : 0,
     );
     return butir;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Sisakan ruang untuk ingatan otomatis baru dengan membuang yang otomatis
+ * TERLAMA — dan tidak pernah menyentuh yang ditulis tangan.
+ *
+ * Tanpa ini, ingatan otomatis berhenti bekerja diam-diam begitu batas 50
+ * tercapai: tambahIngatan melempar, pemanggilnya menelan galatnya, dan tidak
+ * ada satu pun tanda bahwa ia sudah lama tidak belajar apa-apa lagi.
+ */
+export function sisakanRuangOtomatis(butuh: number, dbPath = dbPengaturan()): number {
+  const db = buka(dbPath);
+  try {
+    const { n } = db.prepare("SELECT COUNT(*) AS n FROM ingatan").get() as { n: number };
+    const kelebihan = n + butuh - BATAS_JUMLAH_INGATAN;
+    if (kelebihan <= 0) return 0;
+
+    const buang = db
+      .prepare("SELECT id FROM ingatan WHERE otomatis = 1 ORDER BY dibuat ASC LIMIT ?")
+      .all(kelebihan) as unknown as { id: string }[];
+    const hapus = db.prepare("DELETE FROM ingatan WHERE id = ?");
+    for (const x of buang) hapus.run(x.id);
+    return buang.length;
   } finally {
     db.close();
   }

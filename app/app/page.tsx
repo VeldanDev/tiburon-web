@@ -22,6 +22,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { PemilihJalur, type Jalur } from "@/components/chat/PemilihJalur";
 import { useJalurAwal } from "@/components/JalurAwal";
 import { PETA_JALUR } from "@/lib/pintasan";
+import { TIAP_PESAN } from "@/lib/ingatan-otomatis";
 import { PengukurKedalaman } from "@/components/chat/PengukurKedalaman";
 import { SaljuLaut } from "@/components/chat/SaljuLaut";
 import { Sonar } from "@/components/chat/Sonar";
@@ -833,6 +834,19 @@ function IsiObrolan() {
         const dipakai = [...new Set(balasan.map((b) => b.model).filter(Boolean))];
 
         if (isi) void simpan(id, "assistant", isi, dipakai.length === 1 ? dipakai[0]! : null);
+
+        // Kurasi ingatan berjalan di latar belakang tiap TIAP_PESAN pesan.
+        //
+        // Dihitung dari panjang riwayat di layar, dan sengaja TIDAK ditunggu:
+        // ini panggilan model kedua, dan jawaban yang sudah selesai tidak boleh
+        // menunggu apa pun. Gagalnya berarti tidak ada ingatan baru kali ini.
+        const jumlah = lama.length;
+        if (id && jumlah > 0 && jumlah % TIAP_PESAN === 0) {
+          void fetch("/api/ingatan-otomatis", {
+            method: "POST",
+            body: JSON.stringify({ percakapan: id }),
+          }).catch(() => {});
+        }
         return lama;
       });
     } finally {

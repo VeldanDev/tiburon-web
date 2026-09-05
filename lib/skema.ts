@@ -24,6 +24,11 @@ const TAMBAHAN: { tabel: string; kolom: string; definisi: string }[] = [
   // harus menghitungnya sebagai tidak diketahui -- bukan mengarangnya.
   { tabel: "pesan", kolom: "model", definisi: "TEXT" },
   { tabel: "percakapan", kolom: "persona_id", definisi: "TEXT" },
+  // 0 ditulis tangan, 1 disimpulkan otomatis. Ditandai, bukan dicampur:
+  // ingatan yang tidak bisa dibedakan asalnya adalah ingatan yang tidak bisa
+  // dipercaya sepenuhnya, dan yang ditulis tangan tidak boleh ikut terhapus
+  // saat kurasi otomatis membersihkan miliknya sendiri.
+  { tabel: "ingatan", kolom: "otomatis", definisi: "INTEGER NOT NULL DEFAULT 0" },
 ];
 
 export function siapkanSkema(db: DatabaseSync): void {
@@ -78,7 +83,8 @@ export function siapkanSkema(db: DatabaseSync): void {
       id TEXT PRIMARY KEY,
       isi TEXT NOT NULL,
       pemilik TEXT NOT NULL DEFAULT '',
-      dibuat INTEGER NOT NULL
+      dibuat INTEGER NOT NULL,
+      otomatis INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS sumber_terpakai (
