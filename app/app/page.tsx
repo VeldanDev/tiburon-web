@@ -59,7 +59,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 type KejadianAliran =
   | { jenis: "model"; nama: string }
   | { jenis: "teks"; teks: string }
-  | { jenis: "sumber"; berkas: string[] }
+  | { jenis: "sumber"; berkas: string[]; kueri?: string }
   | { jenis: "peringatan"; pesan: string }
   | { jenis: "gagal"; pesan: string }
   // Dua kejadian ini HANYA datang dari /api/agen. Disatukan ke dalam tipe yang
@@ -667,7 +667,13 @@ function IsiObrolan() {
               }
               akhir.jejak = daftar;
             }
-            if (k.jenis === "sumber") akhir.sumber = k.berkas;
+            if (k.jenis === "sumber") {
+              akhir.sumber = k.berkas;
+              // Jalur Agen mengirim kueri hasil rumusannya sendiri. Kartu
+              // sumber memakainya untuk mencari ulang potongannya; memakai
+              // pertanyaan mentah di sini akan membuka kartu kosong.
+              if (k.kueri) akhir.kueri = k.kueri;
+            }
             if (k.jenis === "peringatan") akhir.peringatan = k.pesan;
             if (k.jenis === "gagal") {
               // Ditulis sebagai teks tebal markdown, bukan karakter simbol:

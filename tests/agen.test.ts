@@ -23,6 +23,7 @@ vi.mock("@/lib/alat", () => ({
 }));
 
 const { jalankanAgen, BATAS_PUTARAN } = await import("@/lib/agen");
+const alat = await import("@/lib/alat");
 
 /** Balasan model yang memanggil alat. */
 function panggilAlat(id = "c1") {
@@ -168,5 +169,63 @@ describe("jalankanAgen", () => {
     // gagal di tengah -- API menolak pesan `tool` yang yatim.
     const badanKedua = JSON.parse(f.mock.calls[2][1].body);
     expect(badanKedua.messages.map((m: { role: string }) => m.role)).toEqual(["system", "user"]);
+  });
+});
+
+describe("agen menyebut sumbernya", () => {
+  /**
+   * Jalur Agen membaca korpus paling banyak, tapi dulu satu-satunya jalur
+   * yang tidak pernah memancarkan kejadian `sumber`. Akibatnya jawaban paling
+   * teliti justru yang tidak bisa diperiksa: tidak ada chip sumber, tidak ada
+   * yang bisa dibuka, dan tidak ada yang tercatat di Riwayat sumber.
+   */
+  function alatMelapor(berkas: string[], kueri: string) {
+    vi.mocked(alat.jalankanAlat).mockImplementation((_n, _a, lapor) => {
+      lapor?.(berkas, kueri);
+      return "hasil alat";
+    });
+  }
+
+  it("mengumpulkan berkas dari panggilan alat lalu mengumumkannya", async () => {
+    alatMelapor(["rem/2026-09-03.md", "MEMORY.md"], "mimpi rem");
+    const f = vi.fn();
+    f.mockResolvedValueOnce(panggilAlat()).mockResolvedValueOnce(jawab());
+    vi.stubGlobal("fetch", f);
+
+    const k = await kumpulkan(jalankanAgen([{ role: "user", content: "cari" }]));
+    const sumber = k.find((x) => x.jenis === "sumber");
+
+    expect(sumber).toBeTruthy();
+    expect(sumber!.berkas).toEqual(["rem/2026-09-03.md", "MEMORY.md"]);
+    // Kueri agen ikut: kartu sumber memakainya untuk mencari ulang potongannya.
+    // Dengan pertanyaan mentah penggunanya, kartunya bisa terbuka kosong.
+    expect(sumber!.kueri).toBe("mimpi rem");
+  });
+
+  it("mengumumkannya SEKALI walau alat dipanggil berkali-kali", async () => {
+    // Layar obrolan mencatat tiap kejadian sumber ke Riwayat sumber. Dipancarkan
+    // per panggilan, satu jawaban akan terhitung berkali-kali di sana.
+    alatMelapor(["MEMORY.md"], "satu");
+    const f = vi.fn();
+    f.mockResolvedValueOnce(panggilAlat("a"))
+      .mockResolvedValueOnce(panggilAlat("b"))
+      .mockResolvedValueOnce(jawab());
+    vi.stubGlobal("fetch", f);
+
+    const k = await kumpulkan(jalankanAgen([{ role: "user", content: "cari" }]));
+    expect(k.filter((x) => x.jenis === "sumber")).toHaveLength(1);
+    // Dan berkas yang sama tidak tercatat dua kali.
+    expect(k.find((x) => x.jenis === "sumber")!.berkas).toEqual(["MEMORY.md"]);
+  });
+
+  it("diam kalau tidak ada alat yang menyentuh korpus", async () => {
+    // Chip sumber kosong di bawah jawaban terbaca seperti fitur rusak.
+    vi.mocked(alat.jalankanAlat).mockImplementation(() => "hasil alat");
+    const f = vi.fn();
+    f.mockResolvedValueOnce(panggilAlat()).mockResolvedValueOnce(jawab());
+    vi.stubGlobal("fetch", f);
+
+    const k = await kumpulkan(jalankanAgen([{ role: "user", content: "cari" }]));
+    expect(k.filter((x) => x.jenis === "sumber")).toHaveLength(0);
   });
 });
