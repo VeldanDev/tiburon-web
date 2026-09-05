@@ -48,12 +48,22 @@ function bawaan(): Konfigurasi {
   return {
     riwayatDb: path.join(process.cwd(), "data", "riwayat.sqlite"),
     // Korpus dan jadwal milik OpenClaw; Tiburon cuma membacanya.
-    korpusDb: path.join(
-      rumah,
-      ".openclaw", "agents", "tiburon", "agent", "openclaw-agent.sqlite",
-    ),
+    // Kalau data/korpus.sqlite ada — hasil `npm run indeks` — itu yang dipakai.
+    // Kalau tidak, jatuh ke basis data OpenClaw milik Veldan. Urutannya begitu
+    // supaya pemasangan baru cukup menjalankan satu perintah tanpa menyunting
+    // berkas apa pun, dan supaya pemasangan Veldan sendiri tetap bekerja
+    // persis seperti sebelumnya.
+    korpusDb: fs.existsSync(path.join(process.cwd(), "data", "korpus.sqlite"))
+      ? path.join(process.cwd(), "data", "korpus.sqlite")
+      : path.join(rumah, ".openclaw", "agents", "tiburon", "agent", "openclaw-agent.sqlite"),
     jadwalDb: path.join(rumah, ".openclaw", "state", "openclaw.sqlite"),
-    radarDir: "D:\\vscode\\MyProjects\\Otak\\radar",
+    // Radar milik Veldan. Pemasangan lain tidak punya foldernya — dan itu
+    // wajar: halaman Radar akan bilang foldernya tidak ada, bukan meledak.
+    // Jalur mutlak milik satu mesin tidak boleh jadi bawaan yang dikirim ke
+    // mesin lain.
+    radarDir: fs.existsSync("D:\\vscode\\MyProjects\\Otak\\radar")
+      ? "D:\\vscode\\MyProjects\\Otak\\radar"
+      : path.join(process.cwd(), "data", "radar"),
   };
 }
 
