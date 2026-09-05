@@ -88,7 +88,9 @@ export function daftarIngatan(dbPath = dbPengaturan()): Ingatan[] {
   const db = buka(dbPath);
   try {
     return db
-      .prepare("SELECT id, isi, dibuat, otomatis FROM ingatan ORDER BY dibuat DESC")
+      .prepare(
+        "SELECT id, isi, dibuat, otomatis FROM ingatan WHERE diarsipkan IS NULL ORDER BY dibuat DESC",
+      )
       .all()
       .map((r) => {
         const row = r as unknown as {
@@ -118,7 +120,9 @@ export function tambahIngatan(
 
   const db = buka(dbPath);
   try {
-    const { n } = db.prepare("SELECT COUNT(*) AS n FROM ingatan").get() as { n: number };
+    const { n } = db
+      .prepare("SELECT COUNT(*) AS n FROM ingatan WHERE diarsipkan IS NULL")
+      .get() as { n: number };
     if (n >= BATAS_JUMLAH_INGATAN) {
       // Ditolak terus terang, bukan yang paling lama dibuang diam-diam.
       // Membuang sendiri berarti sesuatu yang sengaja diingat bisa lenyap
@@ -151,15 +155,24 @@ export function tambahIngatan(
 export function sisakanRuangOtomatis(butuh: number, dbPath = dbPengaturan()): number {
   const db = buka(dbPath);
   try {
-    const { n } = db.prepare("SELECT COUNT(*) AS n FROM ingatan").get() as { n: number };
+    const { n } = db
+      .prepare("SELECT COUNT(*) AS n FROM ingatan WHERE diarsipkan IS NULL")
+      .get() as { n: number };
     const kelebihan = n + butuh - BATAS_JUMLAH_INGATAN;
     if (kelebihan <= 0) return 0;
 
     const buang = db
-      .prepare("SELECT id FROM ingatan WHERE otomatis = 1 ORDER BY dibuat ASC LIMIT ?")
+      .prepare(
+        "SELECT id FROM ingatan WHERE otomatis = 1 AND diarsipkan IS NULL ORDER BY dibuat ASC LIMIT ?",
+      )
       .all(kelebihan) as unknown as { id: string }[];
-    const hapus = db.prepare("DELETE FROM ingatan WHERE id = ?");
-    for (const x of buang) hapus.run(x.id);
+    // DIARSIPKAN, bukan dihapus — invarian kurator Hermes. Ia berhenti ikut
+    // ke prompt dan hilang dari daftar, tapi masih ada kalau ternyata ia
+    // penting. Kurasi otomatis yang menghapus permanen berarti fakta yang
+    // pernah benar lenyap karena sebuah model memutuskan begitu.
+    const arsip = db.prepare("UPDATE ingatan SET diarsipkan = ? WHERE id = ?");
+    const now = Date.now();
+    for (const x of buang) arsip.run(now, x.id);
     return buang.length;
   } finally {
     db.close();

@@ -9,6 +9,7 @@ import {
   saringCalon,
   serupa,
 } from "@/lib/ingatan-otomatis";
+import { DatabaseSync } from "node:sqlite";
 import {
   BATAS_JUMLAH_INGATAN,
   daftarIngatan,
@@ -141,5 +142,49 @@ describe("penanda otomatis", () => {
 describe("selang kurasi", () => {
   it("mengikuti Hermes: tiap 10", () => {
     expect(TIAP_PESAN).toBe(10);
+  });
+});
+
+describe("arsip, bukan hapus", () => {
+  /**
+   * Invarian kurator Hermes, dibaca dari sumbernya:
+   * "never delete, only archive (recoverable)".
+   *
+   * Kurasi otomatis yang menghapus permanen berarti fakta yang pernah benar
+   * lenyap karena sebuah model memutuskan ia tidak penting lagi — dan tidak
+   * ada jalan kembali. Diarsipkan: ia berhenti ikut ke prompt dan hilang dari
+   * daftar, tapi barisnya masih ada.
+   */
+  it("butir yang disingkirkan masih ada di basis data", () => {
+    for (let i = 0; i < BATAS_JUMLAH_INGATAN; i++) tambahIngatan(`auto ${i}`, db, true);
+    sisakanRuangOtomatis(2, db);
+
+    const d = new DatabaseSync(db, { readOnly: true });
+    const total = d.prepare("SELECT COUNT(*) AS n FROM ingatan").get() as { n: number };
+    const arsip = d
+      .prepare("SELECT COUNT(*) AS n FROM ingatan WHERE diarsipkan IS NOT NULL")
+      .get() as { n: number };
+    d.close();
+
+    // Tidak ada satu baris pun yang hilang.
+    expect(total.n).toBe(BATAS_JUMLAH_INGATAN);
+    expect(arsip.n).toBe(2);
+  });
+
+  it("yang diarsipkan berhenti ikut ke daftar dan ke prompt", () => {
+    for (let i = 0; i < BATAS_JUMLAH_INGATAN; i++) tambahIngatan(`auto ${i}`, db, true);
+    sisakanRuangOtomatis(2, db);
+
+    const aktif = daftarIngatan(db);
+    expect(aktif).toHaveLength(BATAS_JUMLAH_INGATAN - 2);
+    expect(aktif.map((i) => i.isi)).not.toContain("auto 0");
+  });
+
+  it("arsip membebaskan ruang untuk butir baru", () => {
+    // Kalau yang diarsipkan masih terhitung penuh, kurasi otomatis berhenti
+    // bekerja selamanya begitu batasnya tercapai sekali.
+    for (let i = 0; i < BATAS_JUMLAH_INGATAN; i++) tambahIngatan(`auto ${i}`, db, true);
+    sisakanRuangOtomatis(1, db);
+    expect(() => tambahIngatan("butir baru", db, true)).not.toThrow();
   });
 });

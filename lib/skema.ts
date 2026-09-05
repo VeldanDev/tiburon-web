@@ -29,6 +29,13 @@ const TAMBAHAN: { tabel: string; kolom: string; definisi: string }[] = [
   // dipercaya sepenuhnya, dan yang ditulis tangan tidak boleh ikut terhapus
   // saat kurasi otomatis membersihkan miliknya sendiri.
   { tabel: "ingatan", kolom: "otomatis", definisi: "INTEGER NOT NULL DEFAULT 0" },
+  // Waktu diarsipkan, atau NULL kalau masih aktif.
+  //
+  // Invarian kurator Hermes, dibaca dari sumbernya: "never delete, only
+  // archive (recoverable)". Kurasi otomatis yang MENGHAPUS berarti sesuatu
+  // yang pernah benar hilang selamanya karena sebuah model memutuskan ia
+  // tidak penting lagi — dan tidak ada jalan kembali.
+  { tabel: "ingatan", kolom: "diarsipkan", definisi: "INTEGER" },
 ];
 
 export function siapkanSkema(db: DatabaseSync): void {

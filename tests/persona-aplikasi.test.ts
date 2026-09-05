@@ -36,7 +36,22 @@ describe("prompt sistem memuat pengetahuan tentang aplikasinya", () => {
 
   it("menyebut bahwa korpus hanya bisa dibaca", () => {
     // Batas yang paling mudah salah diklaim model kalau tidak disebut.
-    expect(prompt.toUpperCase()).toContain("MEMBACA");
+    // Dicocokkan dengan MAKNANYA, bukan satu kata: uji yang mengunci kata
+    // tertentu pecah tiap kali kalimatnya dirapikan, dan uji yang pecah
+    // karena alasan sepele akan dilonggarkan orang alih-alih dibaca.
+    expect(prompt.toLowerCase()).toMatch(/korpus hanya bisa kamu baca/);
+  });
+
+  it("menyuruhnya menyesuaikan panjang jawaban dengan bobot pertanyaan", () => {
+    // Diambil dari SOUL.md Hermes, yang sumbernya dibaca langsung. Ini satu
+    // baris yang paling banyak mengubah rasa tiap jawaban.
+    expect(prompt.toLowerCase()).toMatch(/panjang jawaban mengikuti bobot/);
+  });
+
+  it("melarang setuju hanya karena Veldan yang bilang", () => {
+    // Tanpa baris ini model cenderung membenarkan apa pun — dan asisten yang
+    // selalu setuju tidak menolong siapa pun.
+    expect(prompt.toLowerCase()).toMatch(/setuju karena benar/);
   });
 
   it("melarang mengarang fitur yang tidak terdaftar", () => {
