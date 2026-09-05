@@ -23,16 +23,24 @@
  * 3. TEKSNYA DINORMALKAN. Header dan footer yang berulang di tiap halaman
  *    PDF adalah derau yang cocok dengan hampir semua kueri, dan mendorong
  *    potongan yang benar keluar dari hasil pencarian.
+ *
+ * 4. EXCEL DIUBAH JADI KALIMAT, BUKAN DISALIN SEBAGAI TABEL. Baris
+ *    `| Aero Run | 42 | 3 | 349000 |` tidak memuat satu pun kata yang akan
+ *    diketik pelanggan. Setelah jadi `Produk: Aero Run; Ukuran: 42; Stok: 3;
+ *    Harga: 349000`, barulah kueri "stok Aero Run ukuran 42" punya sesuatu
+ *    untuk dicocokkan. Ini keputusan yang paling menentukan untuk katalog
+ *    produk — dan katalog hampir selalu berbentuk Excel.
  */
 import fs from "node:fs";
 import path from "node:path";
+import type ExcelJS from "exceljs";
 
 export type HasilEkstrak =
   | { ok: true; teks: string; catatan?: string }
   | { ok: false; sebab: string };
 
 /** Ekstensi yang ditangani berkas ini — di luar berkas teks polos. */
-export const EKSTENSI_KANTOR = new Set(["pdf", "docx"]);
+export const EKSTENSI_KANTOR = new Set(["pdf", "docx", "xlsx", "xlsm"]);
 
 /**
  * Ambang teks minimum sebelum sebuah PDF dianggap hasil pindai.
@@ -148,6 +156,82 @@ async function dariDocx(jalur: string): Promise<HasilEkstrak> {
 }
 
 /**
+ * Jumlah baris maksimum per sheet.
+ *
+ * Sheet berisi 200.000 baris ekspor mentah bukan pengetahuan yang bisa
+ * dijawab; ia cuma memenuhi indeks dan memperlambat semua pencarian
+ * berikutnya. Dibatasi, dan pemotongannya DISEBUT.
+ */
+const BATAS_BARIS = 5_000;
+
+/** Ubah satu nilai sel jadi teks yang wajar dibaca manusia. */
+function nilaiSel(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === "object") {
+    const o = v as { text?: unknown; result?: unknown; richText?: { text: string }[] };
+    // Sel berformula menyimpan rumus DAN hasilnya. Yang berguna dicari orang
+    // adalah hasilnya; rumusnya tidak pernah jadi jawaban.
+    if (o.result !== undefined) return nilaiSel(o.result);
+    if (Array.isArray(o.richText)) return o.richText.map((r) => r.text).join("");
+    if (o.text !== undefined) return nilaiSel(o.text);
+    return "";
+  }
+  return String(v).trim();
+}
+
+async function dariExcel(jalur: string): Promise<HasilEkstrak> {
+  let buku: ExcelJS.Workbook;
+  try {
+    const ExcelJSMod = (await import("exceljs")).default as unknown as typeof ExcelJS;
+    buku = new ExcelJSMod.Workbook();
+    await buku.xlsx.readFile(jalur);
+  } catch (e) {
+    return { ok: false, sebab: `Excel tidak bisa dibaca: ${(e as Error).message}` };
+  }
+
+  const bagian: string[] = [];
+  let dipotong = 0;
+
+  buku.eachSheet((sheet) => {
+    const baris: string[][] = [];
+    sheet.eachRow((row) => {
+      const sel: string[] = [];
+      row.eachCell({ includeEmpty: true }, (cell) => sel.push(nilaiSel(cell.value)));
+      if (sel.some((x) => x !== "")) baris.push(sel);
+    });
+    if (!baris.length) return;
+
+    // Baris pertama yang terisi dianggap judul kolom. Sheet tanpa judul
+    // kolom tetap terbaca — nilainya diberi nomor kolom, yang masih jauh
+    // lebih berguna daripada deretan angka telanjang.
+    const judul = baris[0].map((h, i) => h || `Kolom ${i + 1}`);
+    const isi = baris.slice(1, 1 + BATAS_BARIS);
+    if (baris.length - 1 > BATAS_BARIS) dipotong += baris.length - 1 - BATAS_BARIS;
+
+    const kalimat = isi
+      .map((r) =>
+        judul
+          .map((h, i) => (r[i] ? `${h}: ${r[i]}` : ""))
+          .filter(Boolean)
+          .join("; "),
+      )
+      .filter((x) => x.length > 0);
+
+    // Nama sheet ikut: pada berkas berisi "Harga 2025" dan "Harga 2026",
+    // itulah satu-satunya yang membedakan dua baris yang isinya nyaris sama.
+    if (kalimat.length) bagian.push([`[Sheet ${sheet.name}]`, ...kalimat].join("\n"));
+  });
+
+  if (!bagian.length) return { ok: false, sebab: "berkas Excel ini kosong" };
+  return {
+    ok: true,
+    teks: bagian.join("\n\n"),
+    catatan: dipotong ? `${dipotong} baris tidak diindeks (batas ${BATAS_BARIS} per sheet)` : undefined,
+  };
+}
+
+/**
  * Ekstrak teks dari satu berkas kantor.
  *
  * TIDAK PERNAH melempar — semua kegagalan jadi `{ ok: false, sebab }`, supaya
@@ -160,6 +244,7 @@ export async function ekstrak(jalur: string): Promise<HasilEkstrak> {
   }
   try {
     if (ext === "docx") return await dariDocx(jalur);
+    if (ext === "xlsx" || ext === "xlsm") return await dariExcel(jalur);
     return await dariPdf(fs.readFileSync(jalur));
   } catch (e) {
     return { ok: false, sebab: (e as Error).message };

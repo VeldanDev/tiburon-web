@@ -70,3 +70,35 @@ describe("ekstrak", () => {
     }
   });
 });
+
+describe("ekstrak — Excel", () => {
+  it("mengubah baris tabel jadi kalimat yang bisa dicocokkan kueri", async () => {
+    // Baris "| Aero Run | 42 | 3 | 349000 |" tidak memuat satu pun kata yang
+    // akan diketik pelanggan. Setelah jadi "Produk: Aero Run; Ukuran: 42",
+    // barulah kueri "stok Aero Run ukuran 42" punya sesuatu untuk dicocokkan.
+    const h = await ekstrak(path.join(CONTOH, "katalog.xlsx"));
+    expect(h.ok).toBe(true);
+    if (!h.ok) return;
+    expect(h.teks).toContain("Produk: Aero Run; Warna: Biru; Ukuran: 42; Stok: 3; Harga: 349000");
+  });
+
+  it("nilai NOL tidak hilang", async () => {
+    // "Stok: 0" adalah jawaban yang paling sering dicari pelanggan — dan
+    // paling mudah terbuang oleh penyaring nilai kosong yang ceroboh.
+    const h = await ekstrak(path.join(CONTOH, "katalog.xlsx"));
+    if (h.ok) expect(h.teks).toContain("Stok: 0");
+  });
+
+  it("nama sheet ikut, karena itu yang membedakan baris serupa", async () => {
+    const h = await ekstrak(path.join(CONTOH, "katalog.xlsx"));
+    if (h.ok) {
+      expect(h.teks).toContain("[Sheet Katalog]");
+      expect(h.teks).toContain("[Sheet Ongkir]");
+    }
+  });
+
+  it("semua sheet terbaca, bukan hanya yang pertama", async () => {
+    const h = await ekstrak(path.join(CONTOH, "katalog.xlsx"));
+    if (h.ok) expect(h.teks).toContain("Kota: Bandung; Tarif: 22000");
+  });
+});

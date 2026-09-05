@@ -183,7 +183,10 @@ describe("bangunIndeks — berkas kantor", () => {
     const db = path.join(KOTAK, "kantor.sqlite");
     const r = await bangunIndeks(asal, db);
 
-    expect(r.berkas).toBe(2);
+    // Jumlahnya TIDAK dipatok: folder contoh bertambah seiring format baru
+    // didukung, dan uji yang memeriksa angka akan gagal karena alasan yang
+    // sama sekali bukan bug. Yang diperiksa: berkasnya benar-benar terjawab.
+    expect(r.berkas).toBeGreaterThanOrEqual(2);
     expect(cari("cuti tahunan", 8, db).length).toBeGreaterThan(0);
     expect(cari("garansi 12 bulan", 8, db).length).toBeGreaterThan(0);
 
@@ -191,5 +194,22 @@ describe("bangunIndeks — berkas kantor", () => {
     const pindai = r.dilewati.find((d) => d.jalur.endsWith("pindai.pdf"));
     expect(pindai).toBeTruthy();
     expect(pindai!.sebab.toLowerCase()).toContain("ocr");
+  });
+});
+
+describe("bangunIndeks — katalog Excel", () => {
+  it("pertanyaan pelanggan menemukan baris katalog yang benar", async () => {
+    // Ini rantai penuhnya: Excel -> kalimat -> indeks -> pencarian. Kalau satu
+    // mata rantai putus, bot katalog menjawab "tidak tahu" untuk barang yang
+    // jelas-jelas ada di daftar harga kliennya.
+    const asal = path.join(process.cwd(), "data", "uji-kantor-docs");
+    const db = path.join(KOTAK, "excel.sqlite");
+    await bangunIndeks(asal, db);
+
+    const h = cari("stok Aero Run biru ukuran 42", 8, db);
+    expect(h.length).toBeGreaterThan(0);
+    expect(h.map((x) => x.teks).join("\n")).toContain("349000");
+
+    expect(cari("ongkir Bandung", 8, db).length).toBeGreaterThan(0);
   });
 });
