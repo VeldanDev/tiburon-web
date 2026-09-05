@@ -79,7 +79,7 @@ const POLA_BEARER = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{16,}/gi;
  * pemiliknya menamainya KEY, TOKEN, SECRET, atau PASSWORD.
  */
 const POLA_PENETAPAN =
-  /^([ \t]*(?:export[ \t]+)?["']?[A-Za-z_][A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|CREDENTIALS)[A-Za-z0-9_]*["']?[ \t]*[=:][ \t]*)(["']?)([^\r\n]*?)\2([ \t]*,?)[ \t]*$/gim;
+  /(^[ \t]*|[\s,;([{])((?:export[ \t]+)?["']?[A-Za-z_][A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|CREDENTIALS)[A-Za-z0-9_]*["']?[ \t]*[=:][ \t]*)(["']?)([^\r\n]*?)\3([ \t]*,?)[ \t]*$/gim;
 
 /**
  * Nilai yang JELAS bukan rahasia sungguhan.
@@ -115,13 +115,13 @@ export function sunting(teks: string): HasilRedaksi {
 
   hasil = hasil.replace(
     POLA_PENETAPAN,
-    (utuh, kepala: string, kutip: string, nilai: string, ekor: string) => {
+    (utuh, batas: string, kepala: string, kutip: string, nilai: string, ekor: string) => {
       if (contohBelaka(nilai)) return utuh;
       jumlah++;
-      // Ekornya dikembalikan apa adanya: koma yang hilang mengubah berkas JSON
-      // yang sah menjadi berkas rusak, dan model akan melaporkan kerusakan yang
-      // sebenarnya kita sendiri yang membuatnya.
-      return `${kepala}${kutip}${PENANDA}${kutip}${ekor}`;
+      // Batas dan ekornya dikembalikan apa adanya: koma yang hilang mengubah
+      // berkas JSON yang sah menjadi berkas rusak, dan model akan melaporkan
+      // kerusakan yang sebenarnya kita sendiri yang membuatnya.
+      return `${batas}${kepala}${kutip}${PENANDA}${kutip}${ekor}`;
     },
   );
 

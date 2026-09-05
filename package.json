@@ -12,7 +12,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "indeks": "node scripts/indeks.mjs"
+    "indeks": "node scripts/indeks.mjs",
+    "bot": "node bot/telegram.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

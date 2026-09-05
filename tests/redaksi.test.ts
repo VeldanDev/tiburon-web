@@ -160,3 +160,22 @@ describe("penyuntingan tidak boleh merusak berkas yang sah", () => {
     expect(urai.port).toBe(3000);
   });
 });
+
+describe("penetapan di TENGAH baris", () => {
+  it("kunci yang muncul di tengah kalimat tetap disunting", () => {
+    // Ditemukan saat membangun bot katalog: balasan chat adalah satu baris,
+    // dan pola yang berjangkar di awal baris meloloskan persis bentuk yang
+    // paling mungkin terjadi di sana — model yang mengutip satu baris
+    // konfigurasi ke tengah kalimatnya.
+    const h = sunting("Harga Rp 349.000. API_KEY=rahasia-toko-yang-panjang");
+    expect(h.jumlah).toBe(1);
+    expect(h.teks).not.toContain("rahasia-toko-yang-panjang");
+    // Kalimat di depannya utuh — yang disunting nilainya, bukan jawabannya.
+    expect(h.teks).toContain("Harga Rp 349.000.");
+  });
+
+  it("kalimat biasa yang menyebut KEY tanpa nilai tidak disentuh", () => {
+    expect(sunting("Isi API_KEY dengan kunci milikmu sendiri.").jumlah).toBe(0);
+    expect(sunting("Token itu dikirim lewat header.").jumlah).toBe(0);
+  });
+});
