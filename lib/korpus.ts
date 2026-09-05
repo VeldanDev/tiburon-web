@@ -10,6 +10,7 @@
  * `memorySearch` tanpa peringatan. Karena itu periksaSkema() WAJIB dipanggil
  * sebelum percaya pada hasil cari(), dan pemanggil wajib punya jalan mundur.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import os from "node:os";
@@ -21,13 +22,7 @@ export type HasilSkema = { cocok: boolean; alasan?: string };
 const TABEL_WAJIB = ["memory_index_chunks", "memory_index_chunks_fts", "memory_index_meta"];
 
 export function dbBawaan(): string {
-  return (
-    process.env.TIBURON_KORPUS_DB ??
-    path.join(
-      process.env.USERPROFILE ?? os.homedir(),
-      ".openclaw", "agents", "tiburon", "agent", "openclaw-agent.sqlite",
-    )
-  );
+  return konfigurasi().korpusDb;
 }
 
 function buka(dbPath: string): DatabaseSync {

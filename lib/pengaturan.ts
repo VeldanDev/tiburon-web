@@ -17,6 +17,7 @@
  * tidak pernah tahu kenapa. Seluruh proyek ini berdiri di atas jawaban yang
  * bisa diperiksa; ingatan yang tidak bisa dilihat dan dihapus melanggar itu.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { siapkanSkema } from "@/lib/skema";
@@ -44,7 +45,7 @@ export const BATAS_INGATAN = 500;
 export const BATAS_JUMLAH_INGATAN = 50;
 
 export function dbPengaturan(): string {
-  return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
+  return konfigurasi().riwayatDb;
 }
 
 function buka(dbPath: string): DatabaseSync {

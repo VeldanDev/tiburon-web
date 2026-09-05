@@ -9,6 +9,7 @@
  * Ditulis ke basis data milik aplikasi ini sendiri (baca-tulis), BUKAN ke
  * berkas OpenClaw yang selalu dibuka readOnly.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { siapkanSkema } from "@/lib/skema";
@@ -21,7 +22,7 @@ export type RingkasanSumber = {
 };
 
 export function dbSumber(): string {
-  return process.env.TIBURON_RIWAYAT_DB ?? path.join(process.cwd(), "data", "riwayat.sqlite");
+  return konfigurasi().riwayatDb;
 }
 
 function buka(dbPath: string): DatabaseSync {

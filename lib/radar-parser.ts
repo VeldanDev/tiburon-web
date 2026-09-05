@@ -5,6 +5,7 @@
  * berubah, uji di tests/radar-parser.test.ts yang akan gagal lebih dulu —
  * bukan halaman kosong tanpa penjelasan di layar pengguna.
  */
+import { konfigurasi } from "@/lib/konfigurasi";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -15,7 +16,7 @@ export type ItemRadar = {
 export type LaporanRadar = { tanggal: string; berita: ItemRadar[]; github: ItemRadar[] };
 
 export function dirRadar(): string {
-  return process.env.TIBURON_RADAR_DIR ?? "D:\\vscode\\MyProjects\\Otak\\radar";
+  return konfigurasi().radarDir;
 }
 
 function tanggalISO(d: Date): string {
