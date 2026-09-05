@@ -229,3 +229,28 @@ describe("agen menyebut sumbernya", () => {
     expect(k.filter((x) => x.jenis === "sumber")).toHaveLength(0);
   });
 });
+
+describe("kegagalan jalur agen", () => {
+  it("menyebut SEBABNYA, sama seperti jalur obrolan", async () => {
+    // Ditemukan dari tangkapan layar Veldan: jalur obrolan sudah menjelaskan
+    // "kuota habis, coba lagi beberapa menit lagi", sementara jalur Agen masih
+    // menampilkan "Semua model gagal — HTTP 429". Dua tempat yang meringkas
+    // kegagalan dengan cara berbeda berarti satu dari keduanya akan tertinggal
+    // saat yang lain diperbaiki.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 429,
+        text: async () => '{"error":{"message":"rate-limited upstream"}}',
+      })),
+    );
+
+    const k = await kumpulkan(jalankanAgen([{ role: "user", content: "halo" }]));
+    const gagal = k.find((x) => x.jenis === "gagal");
+    expect(gagal).toBeTruthy();
+    expect(String(gagal!.pesan).toLowerCase()).toMatch(/kuota/);
+    // Rinciannya tetap dibawa: yang meringkas tidak menghapus buktinya.
+    expect(String(gagal!.pesan)).toContain("429");
+  });
+});
