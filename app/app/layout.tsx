@@ -29,6 +29,7 @@ import {
   IkonBaru,
   IkonDesain,
   IkonJadwal,
+  IkonKarya,
   IkonKode,
   IkonKorpus,
   IkonRadar,
@@ -64,6 +65,7 @@ const NAV = [
   { Ikon: IkonRadar, label: "Radar", href: "/app/radar" },
   { Ikon: IkonSumber, label: "Riwayat sumber", href: "/app/sumber" },
   { Ikon: IkonJadwal, label: "Tugas terjadwal", href: "/app/jadwal" },
+  { Ikon: IkonKarya, label: "Karya", href: "/app/karya" },
   { Ikon: IkonDesain, label: "Papan desain", href: "/app/desain" },
   { Ikon: IkonAtur, label: "Pengaturan", href: "/app/pengaturan" },
 ];

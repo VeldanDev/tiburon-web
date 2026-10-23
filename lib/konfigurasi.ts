@@ -30,6 +30,7 @@ type Konfigurasi = {
   korpusDb: string;
   radarDir: string;
   jadwalDb: string;
+  karyaDir: string;
 };
 
 /** Berkas konfigurasi opsional di akar proyek. Tidak ada = pakai bawaan. */
@@ -64,6 +65,11 @@ function bawaan(): Konfigurasi {
     radarDir: fs.existsSync("D:\\vscode\\MyProjects\\Otak\\radar")
       ? "D:\\vscode\\MyProjects\\Otak\\radar"
       : path.join(process.cwd(), "data", "radar"),
+    // Hasil pipeline konten @veldorable (slide carousel per hari). Sama seperti
+    // radar: milik satu mesin, jadi jatuh ke folder data proyek kalau tidak ada.
+    karyaDir: fs.existsSync("D:\\Downloads\\Tiburon\\tiktok\\veldorable")
+      ? "D:\\Downloads\\Tiburon\\tiktok\\veldorable"
+      : path.join(process.cwd(), "data", "karya"),
   };
 }
 
@@ -115,6 +121,7 @@ export function konfigurasi(): Konfigurasi {
     korpusDb: process.env.TIBURON_KORPUS_DB ?? dasar.korpusDb,
     radarDir: process.env.TIBURON_RADAR_DIR ?? dasar.radarDir,
     jadwalDb: process.env.TIBURON_JADWAL_DB ?? dasar.jadwalDb,
+    karyaDir: process.env.TIBURON_KARYA_DIR ?? dasar.karyaDir,
   };
 }
 

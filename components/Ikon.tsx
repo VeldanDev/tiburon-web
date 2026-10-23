@@ -104,6 +104,23 @@ export function IkonJadwal(p: Props) {
   );
 }
 
+/** Karya — selembar foto tergantung di tali pancing; ujung kail satu-satunya sudut tajam. */
+export function IkonKarya(p: Props) {
+  return (
+    <Bingkai
+      {...p}
+      anak={
+        <>
+          <path d="M3 4h18" />
+          <path d="M12 4v4l-1.5 1.5" />
+          <rect x="6.5" y="10" width="11" height="10.5" rx="1.5" />
+          <path d="M8.5 17.5l2.5-2.5 2 2 1.5-1.5 1.5 1.5" />
+        </>
+      }
+    />
+  );
+}
+
 /** Papan desain — kisi dengan satu sel bercahaya. */
 export function IkonDesain(p: Props) {
   return (
